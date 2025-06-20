@@ -8,7 +8,6 @@ Turn images in to trippy psychedelic GIFs
 * **Core Settings**: Control fundamental aspects like GIF duration, warp, spin, and color pulse.
 * **Advanced Effects**: Dive deeper with options for layers, blur, starfields, global zoom, pixelation, color inversion, and wave distortions.
 * **Randomization**: Explore unpredictable visual styles with a "Cosmic Chaos" option.
-* **Real-time Preview**: See your input image before generation.
 * **Background Processing**: Generate GIFs without freezing the application.
 
 ## How to Use
