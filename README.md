@@ -27,8 +27,8 @@ This project uses CMake and Qt5. OpenCV is required for image processing.
 ### Prerequisites
 
 * C++17 compatible compiler (e.g., GCC, Clang, MSVC)
-* [cite_start]CMake (version 3.10 or higher) 
-* [cite_start]Qt5 (Widgets and Concurrent modules) 
+* CMake (version 3.10 or higher) 
+* Qt5 (Widgets and Concurrent modules) 
 * OpenCV library
 
 ### Steps
