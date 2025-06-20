@@ -148,7 +148,6 @@ AdvancedSettingsDialog::AdvancedSettingsDialog(GifSettings* settings, QWidget *p
     setupConnections();
 
     // Initialize UI elements with current settings passed from MainWindow
-    // This will populate the dialog's controls with the settings' current values
     updateDialogUiFromSettings();
 }
 
@@ -171,7 +170,7 @@ void AdvancedSettingsDialog::setupUi() {
     grid->setVerticalSpacing(5);
 
     // Helper to add a row for a numeric control (Label, Slider, Value Label, Line Edit)
-    // This lambda is now for DOUBLE values (explicitly handles precision)
+    // This lambda is for DOUBLE values (explicitly handles precision)
     auto addNumericControlRowDouble = [&](const QString& labelText, QSlider*& slider, QLineEdit** edit_ptr, QLabel*& valueLabel, int row, int minSlider, int maxSlider, double initialVal, double guiScaleFactor, int precision, const QString& tooltipText) {
         grid->addWidget(new QLabel(labelText), row, 0); // Label
         slider = new QSlider(Qt::Horizontal);
@@ -239,66 +238,72 @@ void AdvancedSettingsDialog::setupUi() {
     };
 
 
-    // --- Core Advanced Sliders (Existing) ---
-    // Now using addNumericControlRowInt for these integer settings
+    // --- Core Advanced Sliders ---
     addNumericControlRowInt("Layers:", maxLayersSlider, nullptr, maxLayersValueLabel, 0, 5, 20, settingsPtr->max_layers,
                          "Determines the maximum number of original image layers used to create the tunnel effect. More layers create a deeper, more complex visual.");
 
-    // Using addNumericControlRowDouble for blur radius
     addNumericControlRowDouble("Haze (Blur):", blurRadiusSlider, nullptr, blurRadiusValueLabel, 1, 0, 50, settingsPtr->blur_radius, 10.0, 1,
                          "Applies a Gaussian blur to each frame. Higher values result in a dreamier, hazier effect (0.0-5.0).");
 
-    // Using addNumericControlRowInt for num stars
     addNumericControlRowInt("Stars:", numStarsSlider, nullptr, numStarsValueLabel, 2, 0, 200, settingsPtr->num_stars,
                          "Sets the number of stars in the background starfield. A higher count creates a denser starscape.");
 
 
-    // --- New Psychedelic Effect Controls ---
-    // Global Zoom (Double)
+    // --- Global Zoom Controls ---
     addNumericControlRowDouble("Global Zoom:", globalZoomSlider, &globalZoomEdit, globalZoomValueLabel, 3, 0, 100, settingsPtr->global_zoom_speed, 1000.0, 3,
-                         "Controls a continuous zoom in/out effect across frames. (e.g., 0.005 for slow zoom)");
+                         "Controls the intensity of the zoom effect.");
 
+    // NEW: Global Zoom Mode Dropdown
+    grid->addWidget(new QLabel("Zoom Type:"), 4, 0); // Use next available row (e.g., row 4)
+    globalZoomModeCombo = new QComboBox();
+    globalZoomModeCombo->addItem("Linear");
+    globalZoomModeCombo->addItem("Oscillating");
+    globalZoomModeCombo->setToolTip("Choose between continuous zoom-in (Linear) or in-and-out (Oscillating) zoom.");
+    grid->addWidget(globalZoomModeCombo, 4, 1, 1, 3); // Span 3 columns
+
+
+    // --- Other Psychedelic Effect Controls (Adjusted row numbers) ---
     // Pixelation (Int)
-    addNumericControlRowInt("Pixelation:", pixelationSlider, &pixelationEdit, pixelationValueLabel, 4, 0, 50, settingsPtr->pixelation_level,
+    addNumericControlRowInt("Pixelation:", pixelationSlider, &pixelationEdit, pixelationValueLabel, 5, 0, 50, settingsPtr->pixelation_level,
                          "Applies a blocky pixelation effect. Higher values create larger blocks.");
 
     // Color Invert Frequency (Int)
-    addNumericControlRowInt("Invert Freq:", colorInvertSlider, &colorInvertEdit, colorInvertValueLabel, 5, 0, 60, settingsPtr->color_invert_frequency,
+    addNumericControlRowInt("Invert Freq:", colorInvertSlider, &colorInvertEdit, colorInvertValueLabel, 6, 0, 60, settingsPtr->color_invert_frequency,
                          "Inverts colors every N frames. Set to 0 for no inversion. (e.g., 5 for inversion every 5th frame)");
 
     // Wave Amplitude (Double)
-    addNumericControlRowDouble("Wave Amp:", waveAmplitudeSlider, &waveAmplitudeEdit, waveAmplitudeValueLabel, 6, 0, 500, settingsPtr->wave_amplitude, 10.0, 1,
+    addNumericControlRowDouble("Wave Amp:", waveAmplitudeSlider, &waveAmplitudeEdit, waveAmplitudeValueLabel, 7, 0, 500, settingsPtr->wave_amplitude, 10.0, 1,
                          "Controls the strength of the wave distortion effect.");
 
     // Wave Frequency (Double)
-    addNumericControlRowDouble("Wave Freq:", waveFrequencySlider, &waveFrequencyEdit, waveFrequencyValueLabel, 7, 0, 100, settingsPtr->wave_frequency, 100.0, 2,
+    addNumericControlRowDouble("Wave Freq:", waveFrequencySlider, &waveFrequencyEdit, waveFrequencyValueLabel, 8, 0, 100, settingsPtr->wave_frequency, 100.0, 2,
                          "Controls how many waves appear across the image. Higher values mean more frequent waves.");
 
     // Wave Direction Dropdown
-    grid->addWidget(new QLabel("Wave Dir:"), 8, 0);
+    grid->addWidget(new QLabel("Wave Dir:"), 9, 0);
     waveDirectionCombo = new QComboBox();
     waveDirectionCombo->addItem("None");
     waveDirectionCombo->addItem("Horizontal");
     waveDirectionCombo->addItem("Vertical");
     waveDirectionCombo->setToolTip("Choose the direction of the wave distortion (Horizontal, Vertical, None).");
-    grid->addWidget(waveDirectionCombo, 8, 1, 1, 3); // Span 3 columns including value/edit area
+    grid->addWidget(waveDirectionCombo, 9, 1, 1, 3);
 
-    // Fractal Type Dropdown (Existing)
-    grid->addWidget(new QLabel("Fractal Type:"), 9, 0);
+    // Fractal Type Dropdown
+    grid->addWidget(new QLabel("Fractal Type:"), 10, 0);
     fractalTypeCombo = new QComboBox();
     fractalTypeCombo->addItem("Sierpinski");
     fractalTypeCombo->addItem("None"); // Placeholder for other fractals
     fractalTypeCombo->setToolTip("Choose a fractal pattern to integrate into the GIF animation.");
-    grid->addWidget(fractalTypeCombo, 9, 1, 1, 3);
+    grid->addWidget(fractalTypeCombo, 10, 1, 1, 3);
 
-    // Starfield Pattern Dropdown (Existing)
-    grid->addWidget(new QLabel("Starfield Pattern:"), 10, 0);
+    // Starfield Pattern Dropdown
+    grid->addWidget(new QLabel("Starfield Pattern:"), 11, 0);
     starfieldPatternCombo = new QComboBox();
     starfieldPatternCombo->addItem("Random");
     starfieldPatternCombo->addItem("Spiral");
     starfieldPatternCombo->addItem("None"); // Placeholder for other patterns
     starfieldPatternCombo->setToolTip("Select a pattern for how the background stars are arranged (Random, Spiral).");
-    grid->addWidget(starfieldPatternCombo, 10, 1, 1, 3);
+    grid->addWidget(starfieldPatternCombo, 11, 1, 1, 3);
 
     advSettingsMainLayout->addLayout(grid);
     mainLayout->addWidget(advancedSettingsGroup);
@@ -340,9 +345,12 @@ void AdvancedSettingsDialog::setupConnections() {
     connect(fractalTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AdvancedSettingsDialog::onFractalTypeChanged);
     connect(starfieldPatternCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AdvancedSettingsDialog::onStarfieldPatternChanged);
 
-    // New Effect Control Connections
+    // Effect Control Connections
     connect(globalZoomSlider, &QSlider::valueChanged, this, &AdvancedSettingsDialog::onGlobalZoomSliderChanged);
     connect(globalZoomEdit, &QLineEdit::editingFinished, this, &AdvancedSettingsDialog::onGlobalZoomEditFinished);
+
+    // NEW: Connect Global Zoom Mode Combo Box
+    connect(globalZoomModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AdvancedSettingsDialog::onGlobalZoomModeChanged);
 
     connect(pixelationSlider, &QSlider::valueChanged, this, &AdvancedSettingsDialog::onPixelationSliderChanged);
     connect(pixelationEdit, &QLineEdit::editingFinished, this, &AdvancedSettingsDialog::onPixelationEditFinished);
@@ -358,7 +366,7 @@ void AdvancedSettingsDialog::setupConnections() {
 
     connect(waveDirectionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AdvancedSettingsDialog::onWaveDirectionChanged);
 
-    // Connect new Randomize and Default buttons
+    // Connect Randomize and Default buttons
     connect(randomizeButton, &QPushButton::clicked, this, &AdvancedSettingsDialog::randomizeSettingsInDialog);
     connect(defaultButton, &QPushButton::clicked, this, &AdvancedSettingsDialog::resetToDefaultsInDialog);
 }
@@ -397,9 +405,9 @@ void AdvancedSettingsDialog::updateNumericControl(int sliderValue, QSlider* slid
     }
 }
 
-// --- NEW Helper function for updating numeric controls (slider <-> edit <-> label) for INTEGER values ---
+// --- Helper function for updating numeric controls (slider <-> edit <-> label) for INTEGER values ---
 void AdvancedSettingsDialog::updateNumericControl(int sliderValue, QSlider* slider, QLineEdit* edit, QLabel* label,
-                                                  int settingsMin, int settingsMax, double guiScaleFactor, // guiScaleFactor is usually 1.0 for int
+                                                  int settingsMin, int settingsMax, double guiScaleFactor,
                                                   int& settingsVar) {
     QObject* senderObj = sender();
 
@@ -434,7 +442,7 @@ void AdvancedSettingsDialog::updateNumericControl(int sliderValue, QSlider* slid
 
 // --- Slots for updating GifSettings and UI synchronization ---
 
-// Existing Advanced Settings Sliders (Now using updateNumericControl for consistency)
+// Existing Advanced Settings Sliders
 void AdvancedSettingsDialog::onMaxLayersChanged(int value) {
     updateNumericControl(value, maxLayersSlider, nullptr, maxLayersValueLabel,
                          5, 20, 1.0, settingsPtr->max_layers);
@@ -459,7 +467,7 @@ void AdvancedSettingsDialog::onStarfieldPatternChanged(int index) {
 }
 
 
-// --- New Effect Control Slots Implementations (using updateNumericControl where appropriate) ---
+// --- New Effect Control Slots Implementations ---
 
 // Global Zoom
 void AdvancedSettingsDialog::onGlobalZoomSliderChanged(int value) {
@@ -467,9 +475,14 @@ void AdvancedSettingsDialog::onGlobalZoomSliderChanged(int value) {
                          0.0, 0.1, 1000.0, settingsPtr->global_zoom_speed, 3);
 }
 void AdvancedSettingsDialog::onGlobalZoomEditFinished() {
-    // Pass a dummy 0 for sliderValue as it's not triggered by slider
     updateNumericControl(0, globalZoomSlider, globalZoomEdit, globalZoomValueLabel,
                          0.0, 0.1, 1000.0, settingsPtr->global_zoom_speed, 3);
+}
+
+// NEW: Global Zoom Mode Slot
+void AdvancedSettingsDialog::onGlobalZoomModeChanged(int index) {
+    settingsPtr->global_zoom_mode = globalZoomModeCombo->itemText(index).toStdString();
+    emit settingsChanged(); // Notify MainWindow that settings have changed
 }
 
 // Pixelation
@@ -538,10 +551,10 @@ void AdvancedSettingsDialog::randomizeSettingsInDialog() {
     std::uniform_int_distribution<> dist_color_invert(0, 60);
     std::uniform_int_distribution<> dist_wave_amp_int(0, 500);
     std::uniform_int_distribution<> dist_wave_freq_int(0, 100);
-
     std::vector<std::string> fractalTypes = {"Sierpinski", "None"};
     std::vector<std::string> starfieldPatterns = {"Random", "Spiral", "None"};
     std::vector<std::string> waveDirections = {"None", "Horizontal", "Vertical"};
+    std::vector<std::string> zoomModes = {"Linear", "Oscillating"}; // NEW: For randomizing zoom mode
 
     // Update settingsPtr directly
     // Core Settings Randomization
@@ -551,7 +564,7 @@ void AdvancedSettingsDialog::randomizeSettingsInDialog() {
     settingsPtr->hue_speed = static_cast<double>(dist_hue_speed_int(gen)) / 10.0;
     settingsPtr->rotation_direction = rotationDirections[std::uniform_int_distribution<>(0, rotationDirections.size() - 1)(gen)];
 
-    // Advanced Settings Randomization (your existing code)
+    // Advanced Settings Randomization
     settingsPtr->max_layers = dist_layers(gen);
     settingsPtr->blur_radius = static_cast<double>(dist_blur_int(gen)) / 10.0;
     settingsPtr->num_stars = dist_stars(gen);
@@ -563,8 +576,9 @@ void AdvancedSettingsDialog::randomizeSettingsInDialog() {
     settingsPtr->wave_direction = waveDirections[std::uniform_int_distribution<>(0, waveDirections.size() - 1)(gen)];
     settingsPtr->advanced_fractal_type = fractalTypes[std::uniform_int_distribution<>(0, fractalTypes.size() - 1)(gen)];
     settingsPtr->advanced_starfield_pattern = starfieldPatterns[std::uniform_int_distribution<>(0, starfieldPatterns.size() - 1)(gen)];
+    settingsPtr->global_zoom_mode = zoomModes[std::uniform_int_distribution<>(0, zoomModes.size() - 1)(gen)]; // NEW: Randomize zoom mode
 
-    // Now, update the UI elements in the dialog to reflect these new randomized settings
+    // Update the UI elements in the dialog
     updateDialogUiFromSettings();
     emit settingsChanged(); // Notify MainWindow that settings have changed
     qDebug() << "AdvancedSettingsDialog: Randomized settings and emitted settingsChanged().";
@@ -572,30 +586,10 @@ void AdvancedSettingsDialog::randomizeSettingsInDialog() {
 
 // --- resetToDefaultsInDialog Slot ---
 void AdvancedSettingsDialog::resetToDefaultsInDialog() {
-    // Update settingsPtr directly with default values
-    // Core Settings
-    settingsPtr->num_frames = 60; // Default from MainWindow constructor / gif_settings.h
-    settingsPtr->max_scale = 0.9; // Default from MainWindow constructor / gif_settings.h
-    settingsPtr->scale_decay = 0.8; // Default from MainWindow constructor / gif_settings.h
-    settingsPtr->rotation_speed = 6; // Default from MainWindow constructor / gif_settings.h
-    settingsPtr->hue_speed = 3.6; // Default from MainWindow constructor / gif_settings.h
-    settingsPtr->rotation_direction = "Clockwise"; // Default from MainWindow constructor / gif_settings.h
+    // Update settingsPtr directly with the centralized default values
+    *settingsPtr = GifSettings::getDefaultSettings(); // Uses the static method from gif_settings.h
 
-    // Advanced Settings (your existing code, adjusted to gif_settings.h defaults)
-    settingsPtr->max_layers = 5; // Default from gif_settings.h (was 5)
-    settingsPtr->blur_radius = 0.2; // Default from gif_settings.h (was 0.2)
-    settingsPtr->num_stars = 110; // Default from gif_settings.h (was 110)
-    settingsPtr->global_zoom_speed = 0.100; // Default from gif_settings.h
-    settingsPtr->pixelation_level = 0; // Default from gif_settings.h
-    settingsPtr->color_invert_frequency = 18; // Default from gif_settings.h
-    settingsPtr->wave_amplitude = 1.1; // Default from gif_settings.h
-    settingsPtr->wave_frequency = 0.33; // Default from gif_settings.h
-    settingsPtr->wave_direction = "None"; // Default from gif_settings.h
-    settingsPtr->advanced_fractal_type = "Sierpinski"; // Default from gif_settings.h
-    settingsPtr->advanced_starfield_pattern = "Random"; // Default from gif_settings.h
-
-
-    // Now, update the UI elements in the dialog to reflect these new default settings
+    // Update the UI elements in the dialog
     updateDialogUiFromSettings();
     emit settingsChanged(); // Notify MainWindow that settings have changed
     qDebug() << "AdvancedSettingsDialog: Reset to defaults and emitted settingsChanged().";
@@ -608,6 +602,7 @@ void AdvancedSettingsDialog::updateDialogUiFromSettings() {
     blurRadiusSlider->blockSignals(true);
     numStarsSlider->blockSignals(true);
     globalZoomSlider->blockSignals(true); globalZoomEdit->blockSignals(true);
+    globalZoomModeCombo->blockSignals(true); // NEW: Block this combo box
     pixelationSlider->blockSignals(true); pixelationEdit->blockSignals(true);
     colorInvertSlider->blockSignals(true); colorInvertEdit->blockSignals(true);
     waveAmplitudeSlider->blockSignals(true); waveAmplitudeEdit->blockSignals(true);
@@ -657,11 +652,17 @@ void AdvancedSettingsDialog::updateDialogUiFromSettings() {
     int starfieldIndex = starfieldPatternCombo->findText(QString::fromStdString(settingsPtr->advanced_starfield_pattern));
     if (starfieldIndex != -1) starfieldPatternCombo->setCurrentIndex(starfieldIndex);
 
+    // NEW: Update Global Zoom Mode dropdown
+    int zoomModeIndex = globalZoomModeCombo->findText(QString::fromStdString(settingsPtr->global_zoom_mode));
+    if (zoomModeIndex != -1) globalZoomModeCombo->setCurrentIndex(zoomModeIndex);
+
+
     // Unblock signals
     maxLayersSlider->blockSignals(false);
     blurRadiusSlider->blockSignals(false);
     numStarsSlider->blockSignals(false);
     globalZoomSlider->blockSignals(false); globalZoomEdit->blockSignals(false);
+    globalZoomModeCombo->blockSignals(false); // NEW: Unblock this combo box
     pixelationSlider->blockSignals(false); pixelationEdit->blockSignals(false);
     colorInvertSlider->blockSignals(false); colorInvertEdit->blockSignals(false);
     waveAmplitudeSlider->blockSignals(false); waveAmplitudeEdit->blockSignals(false);

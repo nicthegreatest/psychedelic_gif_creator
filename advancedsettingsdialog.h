@@ -22,8 +22,8 @@ public:
     explicit AdvancedSettingsDialog(GifSettings* settings, QWidget *parent = nullptr);
     ~AdvancedSettingsDialog() override = default;
 
-signals: // <--- ADDED: Signals section for custom signals
-    void settingsChanged(); // <--- ADDED: New signal to notify parent of setting changes
+signals:
+    void settingsChanged(); // Signal to notify parent of setting changes
 
 private slots:
     // Slots for the advanced settings controls
@@ -33,9 +33,12 @@ private slots:
     void onFractalTypeChanged(int index);
     void onStarfieldPatternChanged(int index);
 
-    // New Effect Control Slots
+    // Effect Control Slots
     void onGlobalZoomSliderChanged(int value);
     void onGlobalZoomEditFinished();
+
+    // NEW: Slot for Global Zoom Mode
+    void onGlobalZoomModeChanged(int index);
 
     void onPixelationSliderChanged(int value);
     void onPixelationEditFinished();
@@ -72,6 +75,7 @@ private:
     QSlider* globalZoomSlider;
     QLineEdit* globalZoomEdit;
     QLabel* globalZoomValueLabel;
+    QComboBox* globalZoomModeCombo; // NEW: Global Zoom Mode ComboBox
 
     QSlider* pixelationSlider;
     QLineEdit* pixelationEdit;
@@ -103,11 +107,10 @@ private:
                               double settingsMin, double settingsMax, double guiScaleFactor,
                               double& settingsVar, int precision);
 
-    // NEW Overload for integer settings
+    // Overload for integer settings
     void updateNumericControl(int sliderValue, QSlider* slider, QLineEdit* edit, QLabel* label,
                               int settingsMin, int settingsMax, double guiScaleFactor,
-                              int& settingsVar); // No precision for int, int& for settingsVar
-
+                              int& settingsVar);
 
     void updateDialogUiFromSettings();
 };

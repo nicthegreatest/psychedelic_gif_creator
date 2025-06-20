@@ -1,7 +1,7 @@
 // mainwindow.cpp
-#include "mainwindow.h" // Include the declaration of MainWindow
-#include "gif_generator.h" // Include the declaration of createPsychedelicGif
-#include "advancedsettingsdialog.h" // Include the advanced dialog header
+#include "mainwindow.h"
+#include "advancedsettingsdialog.h"
+#include "gif_worker.h" // NEW: Include gif_worker.h
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -10,31 +10,57 @@
 #include <QMessageBox>
 #include <QDir>
 #include <QStatusBar>
-#include <QtConcurrent/QtConcurrent> // For QtConcurrent::run
-#include <random> // For std::random_device, std::mt19937, std::uniform_int_distribution
-#include <string> // For std::string conversions
-#include <QDebug> // For debugging output
+#include <random>
+#include <string>
+#include <QDebug>
 
-// For Image Preview (OpenCV to QPixmap conversion)
-#include <opencv2/imgcodecs.hpp> // For cv::imread
-#include <opencv2/imgproc.hpp>   // For cv::resize
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
 #include <QPixmap>
 #include <QImage>
 
 // --- Constructor ---
-MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
+MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent),
+    worker(nullptr), workerThread(nullptr) // Initialize worker and thread pointers
+{
     setWindowTitle("Psychedelic GIF Creator");
-    resize(800, 700); // Set a default window size
+    resize(800, 700);
 
-    // Initialize our settings object using the centralized default settings
     currentSettings = GifSettings::getDefaultSettings();
 
-    setupUi();         // Build the GUI elements
-    setupConnections(); // Connect signals and slots
-    setupQtConcurrent(); // Setup for QFutureWatcher
-
-    // At startup, set the core UI controls to match the default values
+    setupUi();
+    setupConnections();
+    
+    // QThread is created here in the constructor, but NOT started yet.
+    // It will be started in startGifGeneration().
+    workerThread = new QThread(this); // Parent QThread to MainWindow for proper cleanup
+    
     refreshCoreSettingsUi();
+}
+
+// --- Destructor ---
+MainWindow::~MainWindow() {
+    // Ensure the worker thread is terminated and cleaned up properly
+    if (workerThread && workerThread->isRunning()) {
+        workerThread->quit();
+        workerThread->wait(1000); // Wait up to 1 second for the thread to finish
+        if (workerThread->isRunning()) { // If it's still running, terminate forcefully
+            workerThread->terminate();
+            workerThread->wait(1000);
+        }
+    }
+    // workerThread and worker will be deleted via QObject::deleteLater connections
+    // initiated in startGifGeneration when the thread finishes.
+    // If the app closes before a generation starts, workerThread will be deleted
+    // by its parent (MainWindow).
+    // If worker was created but never started, workerThread might not have ownership.
+    // So, ensuring the worker is deleted if it exists and is not parented to the thread (it is when moved).
+    // The current setup with deleteLater on QThread::finished is robust.
+    // If the thread was never started, `worker` might still exist and be parented to `this`
+    // or unparented. Adding an explicit `delete worker;` here for robustness if `worker` is not null
+    // and not handled by `deleteLater` via `QThread::finished` (e.g., if startGifGeneration was called
+    // but the thread never truly started or finished normally).
+    // For now, given the `deleteLater` connections, this is usually sufficient.
 }
 
 // --- setupUi Method ---
@@ -43,7 +69,6 @@ void MainWindow::setupUi() {
     setCentralWidget(centralWidget);
 
     // --- Apply Global Qt Style Sheet (QSS) ---
-    // This defines the overall look and feel, including colors, fonts, and basic reactivity
     QString styleSheet = R"(
         /* Global Background and Text Colors */
         QMainWindow, QWidget {
@@ -233,7 +258,7 @@ void MainWindow::setupUi() {
     mainLayout->setContentsMargins(20, 20, 20, 20); // Add padding around the main layout
     mainLayout->setSpacing(15); // Add spacing between major sections
 
-    // --- Image Preview/Placeholder (Phase 3.4) ---
+    // --- Image Preview/Placeholder ---
     imagePreviewLabel = new QLabel("Select an image to begin your cosmic journey...");
     imagePreviewLabel->setAlignment(Qt::AlignCenter);
     imagePreviewLabel->setFixedSize(400, 250); // Larger fixed size for preview
@@ -243,7 +268,6 @@ void MainWindow::setupUi() {
 
     // --- Input Section ---
     QGroupBox *inputGroup = new QGroupBox("Input Artifact");
-    // QGroupBox style is applied globally via stylesheet
     QVBoxLayout *inputLayout = new QVBoxLayout(inputGroup);
     inputLayout->setContentsMargins(10, 20, 10, 10); // Adjust padding within group box
     inputLayout->setSpacing(8);
@@ -266,46 +290,43 @@ void MainWindow::setupUi() {
 
     // --- Core Settings Section ---
     QGroupBox *coreSettingsGroup = new QGroupBox("Core Settings");
-    QVBoxLayout *coreSettingsMainLayout = new QVBoxLayout(coreSettingsGroup); // New VBox for internal padding
+    QVBoxLayout *coreSettingsMainLayout = new QVBoxLayout(coreSettingsGroup);
     coreSettingsMainLayout->setContentsMargins(10, 20, 10, 10);
     coreSettingsMainLayout->setSpacing(10);
 
-    QGridLayout *coreSettingsLayout = new QGridLayout(); // Grid for sliders within the VBox
-    coreSettingsLayout->setColumnStretch(1, 1); // Make slider column stretchable
+    QGridLayout *coreSettingsLayout = new QGridLayout();
+    coreSettingsLayout->setColumnStretch(1, 1);
     coreSettingsLayout->setHorizontalSpacing(10);
     coreSettingsLayout->setVerticalSpacing(5);
 
-    // Helper to add slider rows (reduces repetition)
-    // Modified: Removed initialVal parameter, as refreshCoreSettingsUi will set values
     auto addSliderRow = [&](const QString& labelText, QSlider*& slider, QLabel*& valueLabel, int row, int minVal, int maxVal, const QString& tooltipText) {
         coreSettingsLayout->addWidget(new QLabel(labelText), row, 0);
         slider = new QSlider(Qt::Horizontal);
         slider->setRange(minVal, maxVal);
-        // slider->setValue() will be set by refreshCoreSettingsUi()
         slider->setTickPosition(QSlider::TicksBelow);
-        slider->setTickInterval( (maxVal - minVal) / 10 ); // Approx 10 ticks
+        slider->setTickInterval( (maxVal - minVal) / 10 );
         coreSettingsLayout->addWidget(slider, row, 1);
-        valueLabel = new QLabel(""); // Initialize with empty string, refreshCoreSettingsUi will set actual value
-        valueLabel->setMinimumWidth(50); // Ensure enough space for value
+        valueLabel = new QLabel("");
+        valueLabel->setMinimumWidth(50);
         coreSettingsLayout->addWidget(valueLabel, row, 2);
-        slider->setToolTip(tooltipText); // Tooltip for slider
-        valueLabel->setToolTip(tooltipText); // Tooltip for value label
+        slider->setToolTip(tooltipText);
+        valueLabel->setToolTip(tooltipText);
     };
 
     // Cycles Slider
-    addSliderRow("Cycles:", numFramesSlider, numFramesValueLabel, 0, 10, 100, // No initialVal here
+    addSliderRow("Cycles:", numFramesSlider, numFramesValueLabel, 0, 10, 100,
                  "Number of frames in the GIF. More frames result in a smoother but larger GIF.");
 
     // Warp Slider
-    addSliderRow("Warp:", scaleDecaySlider, scaleDecayValueLabel, 1, 50, 95, // No initialVal here
+    addSliderRow("Warp:", scaleDecaySlider, scaleDecayValueLabel, 1, 50, 95,
                  "Controls how quickly inner layers shrink (0.50-0.95). Lower values create a more intense tunnel effect.");
 
     // Spin Speed Slider
-    addSliderRow("Spin Speed:", rotationSpeedSlider, rotationSpeedValueLabel, 2, 0, 30, // No initialVal here
+    addSliderRow("Spin Speed:", rotationSpeedSlider, rotationSpeedValueLabel, 2, 0, 30,
                  "Determines the rotational speed of the psychedelic layers.");
 
     // Pulse Speed Slider
-    addSliderRow("Pulse Speed:", hueSpeedSlider, hueSpeedValueLabel, 3, 0, 200, // No initialVal here
+    addSliderRow("Pulse Speed:", hueSpeedSlider, hueSpeedValueLabel, 3, 0, 200,
                  "Controls the speed of the color shifting (hue rotation) effect.");
 
 
@@ -315,18 +336,46 @@ void MainWindow::setupUi() {
     rotationDirectionCombo->addItem("Clockwise");
     rotationDirectionCombo->addItem("Counter-Clockwise");
     rotationDirectionCombo->addItem("None");
-    // The current index will be set by refreshCoreSettingsUi()
     rotationDirectionCombo->setToolTip("Choose the direction of the rotational animation.");
-    coreSettingsLayout->addWidget(rotationDirectionCombo, 4, 1, 1, 2); // Span 2 columns
+    coreSettingsLayout->addWidget(rotationDirectionCombo, 4, 1, 1, 2);
 
-    coreSettingsMainLayout->addLayout(coreSettingsLayout); // Add the grid to the main VBox of settings group
+    // --- NEW: Zoom Mode Dropdown ---
+    zoomModeLabel = new QLabel("Zoom Mode:");
+    zoomModeComboBox = new QComboBox();
+    zoomModeComboBox->addItem("Linear");
+    zoomModeComboBox->addItem("Oscillating");
+    zoomModeComboBox->setToolTip("Select the type of global zoom effect.");
+    coreSettingsLayout->addWidget(zoomModeLabel, 5, 0);
+    coreSettingsLayout->addWidget(zoomModeComboBox, 5, 1, 1, 2);
+
+    // --- NEW: Oscillating Zoom Amplitude SpinBox ---
+    oscillatingZoomAmplitudeLabel = new QLabel("Oscillating Amplitude:");
+    oscillatingZoomAmplitudeSpinBox = new QDoubleSpinBox();
+    oscillatingZoomAmplitudeSpinBox->setRange(0.0, 2.0);
+    oscillatingZoomAmplitudeSpinBox->setSingleStep(0.01);
+    oscillatingZoomAmplitudeSpinBox->setDecimals(2);
+    oscillatingZoomAmplitudeSpinBox->setToolTip("The intensity of the oscillating zoom effect.");
+    coreSettingsLayout->addWidget(oscillatingZoomAmplitudeLabel, 6, 0);
+    coreSettingsLayout->addWidget(oscillatingZoomAmplitudeSpinBox, 6, 1, 1, 2);
+
+    // --- NEW: Oscillating Zoom Frequency SpinBox ---
+    oscillatingZoomFrequencyLabel = new QLabel("Oscillating Frequency (Cycles):");
+    oscillatingZoomFrequencySpinBox = new QDoubleSpinBox();
+    oscillatingZoomFrequencySpinBox->setRange(0.0, 5.0);
+    oscillatingZoomFrequencySpinBox->setSingleStep(0.1);
+    oscillatingZoomFrequencySpinBox->setDecimals(2);
+    oscillatingZoomFrequencySpinBox->setToolTip("The number of full zoom cycles over the GIF duration.");
+    coreSettingsLayout->addWidget(oscillatingZoomFrequencyLabel, 7, 0);
+    coreSettingsLayout->addWidget(oscillatingZoomFrequencySpinBox, 7, 1, 1, 2);
+
+    coreSettingsMainLayout->addLayout(coreSettingsLayout);
     mainLayout->addWidget(coreSettingsGroup);
 
 
     // --- Action Buttons ---
     QHBoxLayout *actionButtonsLayout = new QHBoxLayout();
-    actionButtonsLayout->setSpacing(10); // Spacing between buttons
-    actionButtonsLayout->setContentsMargins(0, 5, 0, 5); // Padding around buttons
+    actionButtonsLayout->setSpacing(10);
+    actionButtonsLayout->setContentsMargins(0, 5, 0, 5);
 
     advancedButton = new QPushButton("Advanced Settings");
     advancedButton->setToolTip("Configure fractal types, starfield patterns, and more detailed options.");
@@ -334,7 +383,7 @@ void MainWindow::setupUi() {
 
     generateButton = new QPushButton("Launch");
     generateButton->setToolTip("Generate the psychedelic GIF with current settings.");
-    generateButton->setObjectName("generateButton"); // Set object name for specific QSS styling
+    generateButton->setObjectName("generateButton");
     actionButtonsLayout->addWidget(generateButton);
 
     mainLayout->addLayout(actionButtonsLayout);
@@ -351,10 +400,10 @@ void MainWindow::setupUi() {
 
     // QStatusBar provides built-in message display
     setStatusBar(new QStatusBar(this));
-    statusBar()->showMessage("Welcome, Commander! Stand by for hyperspace jump.", 5000); // Initial message
+    statusBar()->showMessage("Welcome, Commander! Stand by for hyperspace jump.", 5000);
 
     // Make central widget expandable
-    mainLayout->addStretch(1); // Push content to top if window is very large
+    mainLayout->addStretch(1);
 }
 
 // --- setupConnections Method ---
@@ -363,7 +412,6 @@ void MainWindow::setupConnections() {
     connect(browseButton, &QPushButton::clicked, this, &MainWindow::browseImage);
 
     // Core Sliders
-    // Connect valueChanged signal to a lambda that updates the label and currentSettings
     connect(numFramesSlider, &QSlider::valueChanged, this, [this](int value){
         currentSettings.num_frames = value;
         updateSliderValueLabel(value, numFramesValueLabel);
@@ -387,19 +435,33 @@ void MainWindow::setupConnections() {
     connect(advancedButton, &QPushButton::clicked, this, &MainWindow::openAdvancedSettings);
     connect(generateButton, &QPushButton::clicked, this, &MainWindow::startGifGeneration);
 
-    // Connect our custom signal for progress updates from the worker thread to the main thread
-    connect(this, &MainWindow::generationProgress, this,
-            [this](int percentage, const QString& message) {
-                progressBar->setValue(percentage);
-                progressBar->setFormat(message + " %p%"); // Show percentage in format
-                statusBar()->showMessage(message); // Also update status bar
+    // --- OLD: REMOVE THIS connect statement that used MainWindow::generationProgress ---
+    // connect(this, &MainWindow::generationProgress, this,
+    //         [this](int percentage, const QString& message) {
+    //             progressBar->setValue(percentage);
+    //             progressBar->setFormat(message + " %p%");
+    //             statusBar()->showMessage(message);
+    //         });
+
+
+    // --- NEW: Connect zoom mode combo box ---
+    connect(zoomModeComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &MainWindow::on_zoomModeComboBox_currentIndexChanged);
+
+    // --- NEW: Connect oscillating zoom spin boxes to update settings ---
+    connect(oscillatingZoomAmplitudeSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, [this](double value){
+                currentSettings.oscillating_zoom_amplitude = value;
+            });
+    connect(oscillatingZoomFrequencySpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, [this](double value){
+                currentSettings.oscillating_zoom_frequency = value;
             });
 }
 
-// --- setupQtConcurrent Method ---
-void MainWindow::setupQtConcurrent() {
-    // No specific initial setup needed here, just the QFutureWatcher member
-}
+// --- setupQtConcurrent (Removed as per previous instructions) ---
+// This function definition is no longer needed in mainwindow.cpp.
+// It was removed from mainwindow.h as well.
 
 // --- setUiEnabled Method ---
 void MainWindow::setUiEnabled(bool enabled) {
@@ -416,7 +478,13 @@ void MainWindow::setUiEnabled(bool enabled) {
     rotationDirectionCombo->setEnabled(enabled);
     advancedButton->setEnabled(enabled);
     generateButton->setEnabled(enabled);
-    // Add other widgets as needed (e.g., the advanced settings dialog's controls will be enabled/disabled when it's open/closed)
+
+    // --- NEW: Enable/disable zoom controls too ---
+    zoomModeComboBox->setEnabled(enabled);
+    oscillatingZoomAmplitudeLabel->setEnabled(enabled);
+    oscillatingZoomAmplitudeSpinBox->setEnabled(enabled);
+    oscillatingZoomFrequencyLabel->setEnabled(enabled);
+    oscillatingZoomFrequencySpinBox->setEnabled(enabled);
 }
 
 // --- browseImage Slot ---
@@ -429,7 +497,7 @@ void MainWindow::browseImage() {
         imagePathEdit->setText(filePath);
         currentSettings.image_path = filePath.toStdString();
 
-        // --- Phase 3.4: Implement Image Preview ---
+        // --- Image Preview ---
         try {
             cv::Mat img = cv::imread(filePath.toStdString(), cv::IMREAD_UNCHANGED);
             if (img.empty()) {
@@ -437,24 +505,20 @@ void MainWindow::browseImage() {
                 return;
             }
 
-            // Ensure RGBA for preview if not already
             if (img.channels() < 4) {
                  cv::cvtColor(img, img, cv::COLOR_BGR2BGRA);
             }
+            cv::cvtColor(img, img, cv::COLOR_BGRA2RGBA);
 
-            // Convert BGR to RGB (for Qt compatibility if original is BGR)
-            cv::cvtColor(img, img, cv::COLOR_BGRA2RGBA); // Ensure proper channel order for QImage
-
-            // Scale image for preview without distorting aspect ratio
             QSize labelSize = imagePreviewLabel->size();
             QImage qImage(img.data, img.cols, img.rows, img.step, QImage::Format_RGBA8888);
             QPixmap pixmap = QPixmap::fromImage(qImage);
             pixmap = pixmap.scaled(labelSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
             imagePreviewLabel->setPixmap(pixmap);
-            imagePreviewLabel->setText(""); // Clear placeholder text
-            imagePreviewLabel->setAlignment(Qt::AlignCenter); // Center the image
-            imagePreviewLabel->setStyleSheet("background-color: #1A1A2E; border: none;"); // Remove border after image load
+            imagePreviewLabel->setText("");
+            imagePreviewLabel->setAlignment(Qt::AlignCenter);
+            imagePreviewLabel->setStyleSheet("background-color: #1A1A2E; border: none;");
 
         } catch (const cv::Exception& e) {
             imagePreviewLabel->setText(QString("Error loading image: %1").arg(e.what()));
@@ -478,14 +542,12 @@ void MainWindow::onRotationDirectionChanged(int index) {
 
 // --- openAdvancedSettings Slot ---
 void MainWindow::openAdvancedSettings() {
-    AdvancedSettingsDialog advDialog(&currentSettings, this); // Pass pointer to settings
-    // Connect dialog's settingsChanged signal to MainWindow's refresh slot
+    AdvancedSettingsDialog advDialog(&currentSettings, this);
     connect(&advDialog, &AdvancedSettingsDialog::settingsChanged, this, &MainWindow::refreshCoreSettingsUi);
-    advDialog.exec(); // Show the dialog modally
-    // The refreshCoreSettingsUi() slot will now be called by the dialog when needed.
+    advDialog.exec();
 }
 
-// --- startGifGeneration Slot (Threading) ---
+// --- startGifGeneration Slot (NEW THREADING MODEL) ---
 void MainWindow::startGifGeneration() {
     if (currentSettings.image_path.empty()) {
         QMessageBox::warning(this, "Input Required", "Please select an input image first.");
@@ -505,31 +567,48 @@ void MainWindow::startGifGeneration() {
     progressBar->setValue(0);
     progressBar->setFormat("Initializing...");
 
-    // Create a QFutureWatcher to monitor the background task
-    QFuture<std::string> future = QtConcurrent::run(
-        [this, outputFilePath]() {
-            // This lambda runs in a separate thread
-            // We pass a local lambda for progress updates to the core function
-            auto progress_cb = [this](int percentage, const std::string& message) {
-                // Emit a signal to update GUI from the main thread
-                emit generationProgress(percentage, QString::fromStdString(message));
-            };
-            return createPsychedelicGif(this->currentSettings, outputFilePath.toStdString(), progress_cb);
-        });
+    // Update currentSettings from UI just before starting the thread
+    currentSettings.image_path = imagePathEdit->text().toStdString();
+    currentSettings.num_frames = numFramesSlider->value();
+    currentSettings.max_scale = static_cast<double>(scaleDecaySlider->value()) / 100.0;
+    currentSettings.scale_decay = static_cast<double>(scaleDecaySlider->value()) / 100.0;
+    currentSettings.rotation_speed = rotationSpeedSlider->value();
+    currentSettings.hue_speed = static_cast<double>(hueSpeedSlider->value()) / 10.0;
+    currentSettings.rotation_direction = rotationDirectionCombo->currentText().toStdString();
+    currentSettings.global_zoom_mode = zoomModeComboBox->currentText().toStdString();
+    currentSettings.oscillating_zoom_amplitude = oscillatingZoomAmplitudeSpinBox->value();
+    currentSettings.oscillating_zoom_frequency = oscillatingZoomFrequencySpinBox->value();
 
-    futureWatcher.setFuture(future);
-    connect(&futureWatcher, &QFutureWatcher<std::string>::finished, this, &MainWindow::gifGenerationFinished);
-    connect(&futureWatcher, &QFutureWatcher<std::string>::progressValueChanged, progressBar, &QProgressBar::setValue);
-    connect(&futureWatcher, &QFutureWatcher<std::string>::progressTextChanged, progressBar, &QProgressBar::setFormat);
+    // Create worker object and move it to the thread
+    worker = new GifWorker(currentSettings, outputFilePath.toStdString());
+    worker->moveToThread(workerThread);
+
+    // Connect signals and slots
+    connect(workerThread, &QThread::started, worker, &GifWorker::process);
+    connect(worker, &GifWorker::progressUpdated, this, &MainWindow::handleGenerationProgress);
+    connect(worker, &GifWorker::finished, this, &MainWindow::handleGenerationFinished);
+
+    // Clean up worker object and thread when finished
+    connect(workerThread, &QThread::finished, worker, &QObject::deleteLater); // Worker deleted when thread finishes
+    connect(workerThread, &QThread::finished, workerThread, &QObject::deleteLater); // Thread deleted after worker
+
+    // Start the thread, which will in turn call worker->process()
+    workerThread->start();
 }
 
-// --- gifGenerationFinished Slot ---
-void MainWindow::gifGenerationFinished() {
-    std::string result = futureWatcher.result();
+// --- handleGenerationProgress Slot ---
+void MainWindow::handleGenerationProgress(int percentage, const QString& message) {
+    progressBar->setValue(percentage);
+    progressBar->setFormat(message + " %p%");
+    statusBar()->showMessage(message);
+}
+
+// --- handleGenerationFinished Slot ---
+void MainWindow::handleGenerationFinished(const QString& result_message) {
     setUiEnabled(true); // Re-enable UI
 
-    if (result.rfind("Error:", 0) == 0 || result.rfind("OpenCV Error:", 0) == 0 || result.rfind("Standard Error:", 0) == 0) {
-        QMessageBox::critical(this, "Generation Failed", QString::fromStdString(result));
+    if (result_message.startsWith("Error:")) {
+        QMessageBox::critical(this, "Generation Failed", result_message);
         statusBar()->showMessage("Generation Failed!");
         progressBar->setValue(0);
         progressBar->setFormat("Failed!");
@@ -537,7 +616,12 @@ void MainWindow::gifGenerationFinished() {
         statusBar()->showMessage("GIF Saved Successfully!", 5000);
         progressBar->setValue(100);
         progressBar->setFormat("Complete!");
+        QMessageBox::information(this, "Frames Generated", result_message);
     }
+    
+    // Clear pointers as objects will be deleted by deleteLater
+    worker = nullptr;
+    workerThread = nullptr;
 }
 
 // --- refreshCoreSettingsUi Slot ---
@@ -550,19 +634,21 @@ void MainWindow::refreshCoreSettingsUi() {
     rotationSpeedSlider->blockSignals(true);
     hueSpeedSlider->blockSignals(true);
     rotationDirectionCombo->blockSignals(true);
+    zoomModeComboBox->blockSignals(true);
+    oscillatingZoomAmplitudeSpinBox->blockSignals(true);
+    oscillatingZoomFrequencySpinBox->blockSignals(true);
+
 
     // Update UI elements based on currentSettings
     numFramesSlider->setValue(currentSettings.num_frames);
     updateSliderValueLabel(currentSettings.num_frames, numFramesValueLabel);
 
-    // For scale_decay, it's a double in settings (0.xx) but an int in slider (50-95)
     scaleDecaySlider->setValue(static_cast<int>(currentSettings.scale_decay * 100));
     updateSliderValueLabel(static_cast<int>(currentSettings.scale_decay * 100), scaleDecayValueLabel, 100.0, 2);
 
     rotationSpeedSlider->setValue(currentSettings.rotation_speed);
     updateSliderValueLabel(currentSettings.rotation_speed, rotationSpeedValueLabel);
 
-    // For hue_speed, it's a double in settings (X.X) but an int in slider (0-200)
     hueSpeedSlider->setValue(static_cast<int>(currentSettings.hue_speed * 10));
     updateSliderValueLabel(static_cast<int>(currentSettings.hue_speed * 10), hueSpeedValueLabel, 10.0, 1);
 
@@ -571,12 +657,42 @@ void MainWindow::refreshCoreSettingsUi() {
         rotationDirectionCombo->setCurrentIndex(rotationIndex);
     }
 
+    int zoomModeIndex = zoomModeComboBox->findText(QString::fromStdString(currentSettings.global_zoom_mode));
+    if (zoomModeIndex != -1) {
+        zoomModeComboBox->setCurrentIndex(zoomModeIndex);
+    }
+    oscillatingZoomAmplitudeSpinBox->setValue(currentSettings.oscillating_zoom_amplitude);
+    oscillatingZoomFrequencySpinBox->setValue(currentSettings.oscillating_zoom_frequency);
+
+
     // Unblock signals
     numFramesSlider->blockSignals(false);
     scaleDecaySlider->blockSignals(false);
     rotationSpeedSlider->blockSignals(false);
     hueSpeedSlider->blockSignals(false);
     rotationDirectionCombo->blockSignals(false);
+    zoomModeComboBox->blockSignals(false);
+    oscillatingZoomAmplitudeSpinBox->blockSignals(false);
+    oscillatingZoomFrequencySpinBox->blockSignals(false);
 
-    statusBar()->showMessage("Core settings refreshed.", 2000); // Short message
+    updateZoomControlVisibility();
+    statusBar()->showMessage("Core settings refreshed.", 2000);
+}
+
+// --- Slot for Zoom Mode ComboBox change ---
+void MainWindow::on_zoomModeComboBox_currentIndexChanged(int index)
+{
+    Q_UNUSED(index);
+    updateZoomControlVisibility();
+}
+
+// --- Helper function to manage visibility based on selected zoom mode ---
+void MainWindow::updateZoomControlVisibility() {
+    QString selectedMode = zoomModeComboBox->currentText();
+    bool isOscillating = (selectedMode == "Oscillating");
+
+    oscillatingZoomAmplitudeLabel->setVisible(isOscillating);
+    oscillatingZoomAmplitudeSpinBox->setVisible(isOscillating);
+    oscillatingZoomFrequencyLabel->setVisible(isOscillating);
+    oscillatingZoomFrequencySpinBox->setVisible(isOscillating);
 }

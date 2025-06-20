@@ -8,7 +8,7 @@
 // This struct holds all the configurable settings for GIF generation.
 struct GifSettings {
     std::string image_path = "";
-    int num_frames = 20; // Initializer default (can be different from getDefaultSettings)
+    int num_frames = 20;
     double max_scale = 0.9;
     double scale_decay = 0.8;
     int rotation_speed = 18;
@@ -20,6 +20,10 @@ struct GifSettings {
     std::string advanced_fractal_type = "Sierpinski";
     std::string advanced_starfield_pattern = "Random";
 
+    // --- New: Oscillating Zoom Parameters ---
+    double oscillating_zoom_amplitude = 0.15; // Amplitude of the oscillation
+    double oscillating_zoom_frequency = 0.5; // Frequency of the oscillation
+
     // --- New Psychedelic Effect Parameters ---
     double global_zoom_speed = 0.0;
     int pixelation_level = 0;
@@ -28,10 +32,13 @@ struct GifSettings {
     double wave_frequency = 0.0;
     std::string wave_direction = "None";
 
+    // NEW: Global Zoom Mode
+    std::string global_zoom_mode = "Linear"; // Default to linear zoom
+
     // Static method to get a GifSettings object with your desired app-wide default values
     static GifSettings getDefaultSettings() {
         GifSettings defaults;
-        defaults.image_path = ""; // Always start with no image selected
+        defaults.image_path = "";
         defaults.num_frames = 60;
         defaults.max_scale = 0.9;
         defaults.scale_decay = 0.8;
@@ -42,7 +49,7 @@ struct GifSettings {
         defaults.max_layers = 5;
         defaults.blur_radius = 0.2;
         defaults.num_stars = 110;
-        defaults.global_zoom_speed = 0.100;
+        defaults.global_zoom_speed = 0.100; // Keep your desired default speed
         defaults.pixelation_level = 0;
         defaults.color_invert_frequency = 18;
         defaults.wave_amplitude = 1.1;
@@ -50,6 +57,11 @@ struct GifSettings {
         defaults.wave_direction = "None";
         defaults.advanced_fractal_type = "Sierpinski";
         defaults.advanced_starfield_pattern = "Random";
+
+
+        defaults.global_zoom_mode = "Oscillating"; // Set default mode to Oscillating Zoom
+        defaults.oscillating_zoom_amplitude = 0.15; // Amplitude of the oscillation
+        defaults.oscillating_zoom_frequency = 0.5; // Frequency of the
         return defaults;
     }
 };
