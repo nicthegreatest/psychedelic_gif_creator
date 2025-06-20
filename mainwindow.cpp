@@ -26,34 +26,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     setWindowTitle("Psychedelic GIF Creator");
     resize(800, 700); // Set a default window size
 
-    // Initialize our settings object with defaults
-    currentSettings.num_frames = 20;
-    currentSettings.max_scale = 0.9;
-    currentSettings.scale_decay = 0.8;
-    currentSettings.rotation_speed = 18;
-    currentSettings.hue_speed = 12.8;
-    currentSettings.max_layers = 10;
-    currentSettings.blur_radius = 1.0;
-    currentSettings.num_stars = 100;
-    currentSettings.rotation_direction = "Clockwise"; // Default from the main window's combobox
-    currentSettings.advanced_fractal_type = "Sierpinski";
-    currentSettings.advanced_starfield_pattern = "Random";
-
-    // Initialize new effect parameters
-    currentSettings.global_zoom_speed = 0.0;
-    currentSettings.pixelation_level = 0;
-    currentSettings.color_invert_frequency = 0;
-    currentSettings.wave_amplitude = 0.0;
-    currentSettings.wave_frequency = 0.0;
-    currentSettings.wave_direction = "None";
-
+    // Initialize our settings object using the centralized default settings
+    currentSettings = GifSettings::getDefaultSettings();
 
     setupUi();         // Build the GUI elements
     setupConnections(); // Connect signals and slots
     setupQtConcurrent(); // Setup for QFutureWatcher
 
-    // At startup, set the core UI controls to match the default values (e.g. from resetToDefaults)
-    // This ensures consistency even if resetToDefaults in adv. dialog hasn't been explicitly pressed.
+    // At startup, set the core UI controls to match the default values
     refreshCoreSettingsUi();
 }
 
@@ -296,15 +276,16 @@ void MainWindow::setupUi() {
     coreSettingsLayout->setVerticalSpacing(5);
 
     // Helper to add slider rows (reduces repetition)
-    auto addSliderRow = [&](const QString& labelText, QSlider*& slider, QLabel*& valueLabel, int row, int minVal, int maxVal, double initialVal, double factor, int precision, const QString& tooltipText) {
+    // Modified: Removed initialVal parameter, as refreshCoreSettingsUi will set values
+    auto addSliderRow = [&](const QString& labelText, QSlider*& slider, QLabel*& valueLabel, int row, int minVal, int maxVal, const QString& tooltipText) {
         coreSettingsLayout->addWidget(new QLabel(labelText), row, 0);
         slider = new QSlider(Qt::Horizontal);
         slider->setRange(minVal, maxVal);
-        slider->setValue(static_cast<int>(initialVal * factor));
+        // slider->setValue() will be set by refreshCoreSettingsUi()
         slider->setTickPosition(QSlider::TicksBelow);
         slider->setTickInterval( (maxVal - minVal) / 10 ); // Approx 10 ticks
         coreSettingsLayout->addWidget(slider, row, 1);
-        valueLabel = new QLabel(QString("(%1)").arg(initialVal, 0, 'f', precision));
+        valueLabel = new QLabel(""); // Initialize with empty string, refreshCoreSettingsUi will set actual value
         valueLabel->setMinimumWidth(50); // Ensure enough space for value
         coreSettingsLayout->addWidget(valueLabel, row, 2);
         slider->setToolTip(tooltipText); // Tooltip for slider
@@ -312,19 +293,19 @@ void MainWindow::setupUi() {
     };
 
     // Cycles Slider
-    addSliderRow("Cycles:", numFramesSlider, numFramesValueLabel, 0, 10, 100, currentSettings.num_frames, 1.0, 0,
+    addSliderRow("Cycles:", numFramesSlider, numFramesValueLabel, 0, 10, 100, // No initialVal here
                  "Number of frames in the GIF. More frames result in a smoother but larger GIF.");
 
     // Warp Slider
-    addSliderRow("Warp:", scaleDecaySlider, scaleDecayValueLabel, 1, 50, 95, currentSettings.scale_decay, 100.0, 2,
+    addSliderRow("Warp:", scaleDecaySlider, scaleDecayValueLabel, 1, 50, 95, // No initialVal here
                  "Controls how quickly inner layers shrink (0.50-0.95). Lower values create a more intense tunnel effect.");
 
     // Spin Speed Slider
-    addSliderRow("Spin Speed:", rotationSpeedSlider, rotationSpeedValueLabel, 2, 0, 30, currentSettings.rotation_speed, 1.0, 0,
+    addSliderRow("Spin Speed:", rotationSpeedSlider, rotationSpeedValueLabel, 2, 0, 30, // No initialVal here
                  "Determines the rotational speed of the psychedelic layers.");
 
     // Pulse Speed Slider
-    addSliderRow("Pulse Speed:", hueSpeedSlider, hueSpeedValueLabel, 3, 0, 200, currentSettings.hue_speed, 10.0, 1,
+    addSliderRow("Pulse Speed:", hueSpeedSlider, hueSpeedValueLabel, 3, 0, 200, // No initialVal here
                  "Controls the speed of the color shifting (hue rotation) effect.");
 
 
@@ -334,8 +315,7 @@ void MainWindow::setupUi() {
     rotationDirectionCombo->addItem("Clockwise");
     rotationDirectionCombo->addItem("Counter-Clockwise");
     rotationDirectionCombo->addItem("None");
-    int rotationIndex = rotationDirectionCombo->findText(QString::fromStdString(currentSettings.rotation_direction));
-    if (rotationIndex != -1) rotationDirectionCombo->setCurrentIndex(rotationIndex);
+    // The current index will be set by refreshCoreSettingsUi()
     rotationDirectionCombo->setToolTip("Choose the direction of the rotational animation.");
     coreSettingsLayout->addWidget(rotationDirectionCombo, 4, 1, 1, 2); // Span 2 columns
 
@@ -351,18 +331,6 @@ void MainWindow::setupUi() {
     advancedButton = new QPushButton("Advanced Settings");
     advancedButton->setToolTip("Configure fractal types, starfield patterns, and more detailed options.");
     actionButtonsLayout->addWidget(advancedButton);
-
-    // Removed Randomize and Default buttons from MainWindow - they are now in AdvancedSettingsDialog
-    // randomizeButton = new QPushButton("Cosmic Chaos");
-    // randomizeButton->setToolTip("Randomizes most of the current settings for unpredictable results. Use with caution!");
-    // actionButtonsLayout->addWidget(randomizeButton);
-
-    // defaultButton = new QPushButton("Default");
-    // defaultButton->setToolTip("Resets all settings to a set of recommended default values.");
-    // defaultButton->setObjectName("defaultButton");
-    // defaultButton->setFixedSize(60, 25);
-    // actionButtonsLayout->addWidget(defaultButton);
-
 
     generateButton = new QPushButton("Launch");
     generateButton->setToolTip("Generate the psychedelic GIF with current settings.");
@@ -417,9 +385,6 @@ void MainWindow::setupConnections() {
 
     // Action Buttons
     connect(advancedButton, &QPushButton::clicked, this, &MainWindow::openAdvancedSettings);
-    // Removed connections for randomizeButton and defaultButton
-    // connect(randomizeButton, &QPushButton::clicked, this, &MainWindow::randomizeSettings);
-    // connect(defaultButton, &QPushButton::clicked, this, &MainWindow::resetToDefaults);
     connect(generateButton, &QPushButton::clicked, this, &MainWindow::startGifGeneration);
 
     // Connect our custom signal for progress updates from the worker thread to the main thread
@@ -450,9 +415,6 @@ void MainWindow::setUiEnabled(bool enabled) {
     hueSpeedValueLabel->setEnabled(enabled);
     rotationDirectionCombo->setEnabled(enabled);
     advancedButton->setEnabled(enabled);
-    // Removed enable/disable for randomizeButton and defaultButton
-    // randomizeButton->setEnabled(enabled);
-    // defaultButton->setEnabled(enabled);
     generateButton->setEnabled(enabled);
     // Add other widgets as needed (e.g., the advanced settings dialog's controls will be enabled/disabled when it's open/closed)
 }
@@ -523,22 +485,6 @@ void MainWindow::openAdvancedSettings() {
     // The refreshCoreSettingsUi() slot will now be called by the dialog when needed.
 }
 
-// --- randomizeSettings Slot (REMOVED: Logic moved to AdvancedSettingsDialog) ---
-/*
-void MainWindow::randomizeSettings() {
-    // Logic moved to AdvancedSettingsDialog
-    statusBar()->showMessage("Randomize is now in Advanced Settings.");
-}
-*/
-
-// --- resetToDefaults Slot (REMOVED: Logic moved to AdvancedSettingsDialog) ---
-/*
-void MainWindow::resetToDefaults() {
-    // Logic moved to AdvancedSettingsDialog
-    statusBar()->showMessage("Reset Defaults is now in Advanced Settings.");
-}
-*/
-
 // --- startGifGeneration Slot (Threading) ---
 void MainWindow::startGifGeneration() {
     if (currentSettings.image_path.empty()) {
@@ -596,7 +542,7 @@ void MainWindow::gifGenerationFinished() {
 
 // --- refreshCoreSettingsUi Slot ---
 void MainWindow::refreshCoreSettingsUi() {
-    qDebug() << "MainWindow::refreshCoreSettingsUi() called."; // Debugging line
+    qDebug() << "MainWindow::refreshCoreSettingsUi() called.";
 
     // Block signals to prevent immediate re-triggering of slots during refresh
     numFramesSlider->blockSignals(true);

@@ -97,9 +97,18 @@ private:
 
     void setupUi();
     void setupConnections();
+
+    // Overload for double settings
     void updateNumericControl(int sliderValue, QSlider* slider, QLineEdit* edit, QLabel* label,
                               double settingsMin, double settingsMax, double guiScaleFactor,
                               double& settingsVar, int precision);
+
+    // NEW Overload for integer settings
+    void updateNumericControl(int sliderValue, QSlider* slider, QLineEdit* edit, QLabel* label,
+                              int settingsMin, int settingsMax, double guiScaleFactor,
+                              int& settingsVar); // No precision for int, int& for settingsVar
+
+
     void updateDialogUiFromSettings();
 };
 

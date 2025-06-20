@@ -171,7 +171,8 @@ void AdvancedSettingsDialog::setupUi() {
     grid->setVerticalSpacing(5);
 
     // Helper to add a row for a numeric control (Label, Slider, Value Label, Line Edit)
-    auto addNumericControlRow = [&](const QString& labelText, QSlider*& slider, QLineEdit** edit_ptr, QLabel*& valueLabel, int row, int minSlider, int maxSlider, double initialVal, double guiScaleFactor, int precision, const QString& tooltipText) {
+    // This lambda is now for DOUBLE values (explicitly handles precision)
+    auto addNumericControlRowDouble = [&](const QString& labelText, QSlider*& slider, QLineEdit** edit_ptr, QLabel*& valueLabel, int row, int minSlider, int maxSlider, double initialVal, double guiScaleFactor, int precision, const QString& tooltipText) {
         grid->addWidget(new QLabel(labelText), row, 0); // Label
         slider = new QSlider(Qt::Horizontal);
         slider->setRange(minSlider, maxSlider);
@@ -187,17 +188,10 @@ void AdvancedSettingsDialog::setupUi() {
 
         if (edit_ptr) { // Only create and add QLineEdit if a pointer to it is provided
             *edit_ptr = new QLineEdit();
-            // Use QDoubleValidator for float inputs, QIntValidator for int inputs
-            if (precision > 0) { // If precision > 0, assume it's a float
-                QDoubleValidator* validator = new QDoubleValidator(*edit_ptr);
-                validator->setNotation(QDoubleValidator::StandardNotation); // Allow scientific notation
-                validator->setRange(static_cast<double>(minSlider) / guiScaleFactor, static_cast<double>(maxSlider) / guiScaleFactor, precision);
-                (*edit_ptr)->setValidator(validator);
-            } else { // Assume it's an integer
-                QIntValidator* validator = new QIntValidator(*edit_ptr);
-                validator->setRange(minSlider, maxSlider);
-                (*edit_ptr)->setValidator(validator);
-            }
+            QDoubleValidator* validator = new QDoubleValidator(*edit_ptr);
+            validator->setNotation(QDoubleValidator::StandardNotation); // Allow scientific notation
+            validator->setRange(static_cast<double>(minSlider) / guiScaleFactor, static_cast<double>(maxSlider) / guiScaleFactor, precision);
+            (*edit_ptr)->setValidator(validator);
 
             (*edit_ptr)->setMinimumWidth(60);
             (*edit_ptr)->setMaximumWidth(80);
@@ -211,36 +205,73 @@ void AdvancedSettingsDialog::setupUi() {
         }
     };
 
+    // Helper to add a row for an INTEGER numeric control (Label, Slider, Value Label, Line Edit)
+    auto addNumericControlRowInt = [&](const QString& labelText, QSlider*& slider, QLineEdit** edit_ptr, QLabel*& valueLabel, int row, int minSlider, int maxSlider, int initialVal, const QString& tooltipText) {
+        grid->addWidget(new QLabel(labelText), row, 0); // Label
+        slider = new QSlider(Qt::Horizontal);
+        slider->setRange(minSlider, maxSlider);
+        slider->setTickPosition(QSlider::TicksBelow);
+        slider->setTickInterval((maxSlider - minSlider) / 10);
+        slider->setToolTip(tooltipText);
+        grid->addWidget(slider, row, 1); // Slider
+
+        valueLabel = new QLabel(QString("(%1)").arg(initialVal));
+        valueLabel->setMinimumWidth(50); // Ensure space
+        valueLabel->setToolTip(tooltipText);
+        grid->addWidget(valueLabel, row, 2); // Value Label
+
+        if (edit_ptr) { // Only create and add QLineEdit if a pointer to it is provided
+            *edit_ptr = new QLineEdit();
+            QIntValidator* validator = new QIntValidator(*edit_ptr);
+            validator->setRange(minSlider, maxSlider);
+            (*edit_ptr)->setValidator(validator);
+
+            (*edit_ptr)->setMinimumWidth(60);
+            (*edit_ptr)->setMaximumWidth(80);
+            (*edit_ptr)->setToolTip(tooltipText);
+            grid->addWidget(*edit_ptr, row, 3); // Line Edit
+        } else {
+            // Add an empty widget to fill the column for alignment if no edit is needed
+            QWidget* emptyWidget = new QWidget();
+            emptyWidget->setFixedWidth(80); // Match width of QLineEdit
+            grid->addWidget(emptyWidget, row, 3);
+        }
+    };
+
+
     // --- Core Advanced Sliders (Existing) ---
-    addNumericControlRow("Layers:", maxLayersSlider, nullptr, maxLayersValueLabel, 0, 5, 20, settingsPtr->max_layers, 1.0, 0,
+    // Now using addNumericControlRowInt for these integer settings
+    addNumericControlRowInt("Layers:", maxLayersSlider, nullptr, maxLayersValueLabel, 0, 5, 20, settingsPtr->max_layers,
                          "Determines the maximum number of original image layers used to create the tunnel effect. More layers create a deeper, more complex visual.");
 
-    addNumericControlRow("Haze (Blur):", blurRadiusSlider, nullptr, blurRadiusValueLabel, 1, 0, 50, settingsPtr->blur_radius, 10.0, 1,
+    // Using addNumericControlRowDouble for blur radius
+    addNumericControlRowDouble("Haze (Blur):", blurRadiusSlider, nullptr, blurRadiusValueLabel, 1, 0, 50, settingsPtr->blur_radius, 10.0, 1,
                          "Applies a Gaussian blur to each frame. Higher values result in a dreamier, hazier effect (0.0-5.0).");
 
-    addNumericControlRow("Stars:", numStarsSlider, nullptr, numStarsValueLabel, 2, 0, 200, settingsPtr->num_stars, 1.0, 0,
+    // Using addNumericControlRowInt for num stars
+    addNumericControlRowInt("Stars:", numStarsSlider, nullptr, numStarsValueLabel, 2, 0, 200, settingsPtr->num_stars,
                          "Sets the number of stars in the background starfield. A higher count creates a denser starscape.");
 
 
     // --- New Psychedelic Effect Controls ---
-    // Global Zoom
-    addNumericControlRow("Global Zoom:", globalZoomSlider, &globalZoomEdit, globalZoomValueLabel, 3, 0, 100, settingsPtr->global_zoom_speed, 1000.0, 3,
+    // Global Zoom (Double)
+    addNumericControlRowDouble("Global Zoom:", globalZoomSlider, &globalZoomEdit, globalZoomValueLabel, 3, 0, 100, settingsPtr->global_zoom_speed, 1000.0, 3,
                          "Controls a continuous zoom in/out effect across frames. (e.g., 0.005 for slow zoom)");
 
-    // Pixelation
-    addNumericControlRow("Pixelation:", pixelationSlider, &pixelationEdit, pixelationValueLabel, 4, 0, 50, settingsPtr->pixelation_level, 1.0, 0,
+    // Pixelation (Int)
+    addNumericControlRowInt("Pixelation:", pixelationSlider, &pixelationEdit, pixelationValueLabel, 4, 0, 50, settingsPtr->pixelation_level,
                          "Applies a blocky pixelation effect. Higher values create larger blocks.");
 
-    // Color Invert Frequency
-    addNumericControlRow("Invert Freq:", colorInvertSlider, &colorInvertEdit, colorInvertValueLabel, 5, 0, 60, settingsPtr->color_invert_frequency, 1.0, 0,
+    // Color Invert Frequency (Int)
+    addNumericControlRowInt("Invert Freq:", colorInvertSlider, &colorInvertEdit, colorInvertValueLabel, 5, 0, 60, settingsPtr->color_invert_frequency,
                          "Inverts colors every N frames. Set to 0 for no inversion. (e.g., 5 for inversion every 5th frame)");
 
-    // Wave Amplitude
-    addNumericControlRow("Wave Amp:", waveAmplitudeSlider, &waveAmplitudeEdit, waveAmplitudeValueLabel, 6, 0, 500, settingsPtr->wave_amplitude, 10.0, 1,
+    // Wave Amplitude (Double)
+    addNumericControlRowDouble("Wave Amp:", waveAmplitudeSlider, &waveAmplitudeEdit, waveAmplitudeValueLabel, 6, 0, 500, settingsPtr->wave_amplitude, 10.0, 1,
                          "Controls the strength of the wave distortion effect.");
 
-    // Wave Frequency
-    addNumericControlRow("Wave Freq:", waveFrequencySlider, &waveFrequencyEdit, waveFrequencyValueLabel, 7, 0, 100, settingsPtr->wave_frequency, 100.0, 2,
+    // Wave Frequency (Double)
+    addNumericControlRowDouble("Wave Freq:", waveFrequencySlider, &waveFrequencyEdit, waveFrequencyValueLabel, 7, 0, 100, settingsPtr->wave_frequency, 100.0, 2,
                          "Controls how many waves appear across the image. Higher values mean more frequent waves.");
 
     // Wave Direction Dropdown
@@ -332,7 +363,7 @@ void AdvancedSettingsDialog::setupConnections() {
     connect(defaultButton, &QPushButton::clicked, this, &AdvancedSettingsDialog::resetToDefaultsInDialog);
 }
 
-// --- Helper function for updating numeric controls (slider <-> edit <-> label) ---
+// --- Helper function for updating numeric controls (slider <-> edit <-> label) for DOUBLE values ---
 void AdvancedSettingsDialog::updateNumericControl(int sliderValue, QSlider* slider, QLineEdit* edit, QLabel* label,
                                                   double settingsMin, double settingsMax, double guiScaleFactor,
                                                   double& settingsVar, int precision) {
@@ -366,14 +397,47 @@ void AdvancedSettingsDialog::updateNumericControl(int sliderValue, QSlider* slid
     }
 }
 
+// --- NEW Helper function for updating numeric controls (slider <-> edit <-> label) for INTEGER values ---
+void AdvancedSettingsDialog::updateNumericControl(int sliderValue, QSlider* slider, QLineEdit* edit, QLabel* label,
+                                                  int settingsMin, int settingsMax, double guiScaleFactor, // guiScaleFactor is usually 1.0 for int
+                                                  int& settingsVar) {
+    QObject* senderObj = sender();
+
+    if (senderObj == slider) {
+        settingsVar = static_cast<int>(sliderValue / guiScaleFactor);
+        settingsVar = std::min(settingsMax, std::max(settingsMin, settingsVar));
+
+        if (edit) {
+            edit->blockSignals(true);
+            edit->setText(QString::number(settingsVar));
+            edit->blockSignals(false);
+        }
+        if (label) label->setText(QString("(%1)").arg(settingsVar));
+    }
+    else if (senderObj == edit) {
+        bool ok;
+        int val = edit->text().toInt(&ok);
+        if (ok) {
+            settingsVar = std::min(settingsMax, std::max(settingsMin, val));
+            slider->blockSignals(true);
+            slider->setValue(static_cast<int>(settingsVar * guiScaleFactor));
+            slider->blockSignals(false);
+            if (label) label->setText(QString("(%1)").arg(settingsVar));
+            edit->setText(QString::number(settingsVar)); // Update text for clamping
+        } else {
+            edit->setText(QString::number(settingsVar)); // Revert
+            if (label) label->setText(QString("(%1)").arg(settingsVar));
+        }
+    }
+}
+
 
 // --- Slots for updating GifSettings and UI synchronization ---
 
-// Existing Advanced Settings Sliders (Simplified calls using updateNumericControl for consistency)
+// Existing Advanced Settings Sliders (Now using updateNumericControl for consistency)
 void AdvancedSettingsDialog::onMaxLayersChanged(int value) {
-    settingsPtr->max_layers = value;
-    maxLayersValueLabel->setText(QString("(%1)").arg(value));
-    // No QLineEdit for this, so direct update is fine.
+    updateNumericControl(value, maxLayersSlider, nullptr, maxLayersValueLabel,
+                         5, 20, 1.0, settingsPtr->max_layers);
 }
 
 void AdvancedSettingsDialog::onBlurRadiusChanged(int value) {
@@ -382,9 +446,8 @@ void AdvancedSettingsDialog::onBlurRadiusChanged(int value) {
 }
 
 void AdvancedSettingsDialog::onNumStarsChanged(int value) {
-    settingsPtr->num_stars = value;
-    numStarsValueLabel->setText(QString("(%1)").arg(value));
-    // No QLineEdit for this.
+    updateNumericControl(value, numStarsSlider, nullptr, numStarsValueLabel,
+                         0, 200, 1.0, settingsPtr->num_stars);
 }
 
 void AdvancedSettingsDialog::onFractalTypeChanged(int index) {
@@ -412,21 +475,21 @@ void AdvancedSettingsDialog::onGlobalZoomEditFinished() {
 // Pixelation
 void AdvancedSettingsDialog::onPixelationSliderChanged(int value) {
     updateNumericControl(value, pixelationSlider, pixelationEdit, pixelationValueLabel,
-                         0.0, 50.0, 1.0, (double&)settingsPtr->pixelation_level, 0); // Cast int to double for helper
+                         0, 50, 1.0, settingsPtr->pixelation_level);
 }
 void AdvancedSettingsDialog::onPixelationEditFinished() {
     updateNumericControl(0, pixelationSlider, pixelationEdit, pixelationValueLabel,
-                         0.0, 50.0, 1.0, (double&)settingsPtr->pixelation_level, 0); // Cast int to double for helper
+                         0, 50, 1.0, settingsPtr->pixelation_level);
 }
 
 // Color Invert Frequency
 void AdvancedSettingsDialog::onColorInvertSliderChanged(int value) {
     updateNumericControl(value, colorInvertSlider, colorInvertEdit, colorInvertValueLabel,
-                         0.0, 60.0, 1.0, (double&)settingsPtr->color_invert_frequency, 0); // Cast int to double for helper
+                         0, 60, 1.0, settingsPtr->color_invert_frequency);
 }
 void AdvancedSettingsDialog::onColorInvertEditFinished() {
     updateNumericControl(0, colorInvertSlider, colorInvertEdit, colorInvertValueLabel,
-                         0.0, 60.0, 1.0, (double&)settingsPtr->color_invert_frequency, 0); // Cast int to double for helper
+                         0, 60, 1.0, settingsPtr->color_invert_frequency);
 }
 
 // Wave Amplitude
@@ -459,6 +522,14 @@ void AdvancedSettingsDialog::randomizeSettingsInDialog() {
     std::random_device rd;
     std::mt19937 gen(rd());
 
+    // Distributions for Core Settings
+    std::uniform_int_distribution<> dist_num_frames(10, 100);
+    std::uniform_int_distribution<> dist_scale_decay_int(50, 95); // For int 50 to 95 for slider mapping
+    std::uniform_int_distribution<> dist_rotation_speed(0, 30);
+    std::uniform_int_distribution<> dist_hue_speed_int(0, 200); // For int 0 to 200 for slider mapping
+    std::vector<std::string> rotationDirections = {"Clockwise", "Counter-Clockwise", "None"};
+
+    // Distributions for Advanced Settings
     std::uniform_int_distribution<> dist_layers(5, 20);
     std::uniform_int_distribution<> dist_blur_int(0, 50); // For int slider value
     std::uniform_int_distribution<> dist_stars(0, 200);
@@ -473,6 +544,14 @@ void AdvancedSettingsDialog::randomizeSettingsInDialog() {
     std::vector<std::string> waveDirections = {"None", "Horizontal", "Vertical"};
 
     // Update settingsPtr directly
+    // Core Settings Randomization
+    settingsPtr->num_frames = dist_num_frames(gen);
+    settingsPtr->scale_decay = static_cast<double>(dist_scale_decay_int(gen)) / 100.0;
+    settingsPtr->rotation_speed = dist_rotation_speed(gen);
+    settingsPtr->hue_speed = static_cast<double>(dist_hue_speed_int(gen)) / 10.0;
+    settingsPtr->rotation_direction = rotationDirections[std::uniform_int_distribution<>(0, rotationDirections.size() - 1)(gen)];
+
+    // Advanced Settings Randomization (your existing code)
     settingsPtr->max_layers = dist_layers(gen);
     settingsPtr->blur_radius = static_cast<double>(dist_blur_int(gen)) / 10.0;
     settingsPtr->num_stars = dist_stars(gen);
@@ -488,28 +567,38 @@ void AdvancedSettingsDialog::randomizeSettingsInDialog() {
     // Now, update the UI elements in the dialog to reflect these new randomized settings
     updateDialogUiFromSettings();
     emit settingsChanged(); // Notify MainWindow that settings have changed
-    qDebug() << "AdvancedSettingsDialog: Randomized settings and emitted settingsChanged()."; // Debugging line
+    qDebug() << "AdvancedSettingsDialog: Randomized settings and emitted settingsChanged().";
 }
 
 // --- resetToDefaultsInDialog Slot ---
 void AdvancedSettingsDialog::resetToDefaultsInDialog() {
     // Update settingsPtr directly with default values
-    settingsPtr->max_layers = 5;
-    settingsPtr->blur_radius = 0.2;
-    settingsPtr->num_stars = 110;
-    settingsPtr->global_zoom_speed = 0.100;
-    settingsPtr->pixelation_level = 0;
-    settingsPtr->color_invert_frequency = 18;
-    settingsPtr->wave_amplitude = 1.1;
-    settingsPtr->wave_frequency = 0.33;
-    settingsPtr->wave_direction = "Horizontal";
-    settingsPtr->advanced_fractal_type = "Sierpinski";
-    settingsPtr->advanced_starfield_pattern = "Random";
+    // Core Settings
+    settingsPtr->num_frames = 60; // Default from MainWindow constructor / gif_settings.h
+    settingsPtr->max_scale = 0.9; // Default from MainWindow constructor / gif_settings.h
+    settingsPtr->scale_decay = 0.8; // Default from MainWindow constructor / gif_settings.h
+    settingsPtr->rotation_speed = 6; // Default from MainWindow constructor / gif_settings.h
+    settingsPtr->hue_speed = 3.6; // Default from MainWindow constructor / gif_settings.h
+    settingsPtr->rotation_direction = "Clockwise"; // Default from MainWindow constructor / gif_settings.h
+
+    // Advanced Settings (your existing code, adjusted to gif_settings.h defaults)
+    settingsPtr->max_layers = 5; // Default from gif_settings.h (was 5)
+    settingsPtr->blur_radius = 0.2; // Default from gif_settings.h (was 0.2)
+    settingsPtr->num_stars = 110; // Default from gif_settings.h (was 110)
+    settingsPtr->global_zoom_speed = 0.100; // Default from gif_settings.h
+    settingsPtr->pixelation_level = 0; // Default from gif_settings.h
+    settingsPtr->color_invert_frequency = 18; // Default from gif_settings.h
+    settingsPtr->wave_amplitude = 1.1; // Default from gif_settings.h
+    settingsPtr->wave_frequency = 0.33; // Default from gif_settings.h
+    settingsPtr->wave_direction = "None"; // Default from gif_settings.h
+    settingsPtr->advanced_fractal_type = "Sierpinski"; // Default from gif_settings.h
+    settingsPtr->advanced_starfield_pattern = "Random"; // Default from gif_settings.h
+
 
     // Now, update the UI elements in the dialog to reflect these new default settings
     updateDialogUiFromSettings();
     emit settingsChanged(); // Notify MainWindow that settings have changed
-    qDebug() << "AdvancedSettingsDialog: Reset to defaults and emitted settingsChanged()."; // Debugging line
+    qDebug() << "AdvancedSettingsDialog: Reset to defaults and emitted settingsChanged().";
 }
 
 // --- Helper to update all dialog UI elements from settingsPtr ---

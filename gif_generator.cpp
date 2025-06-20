@@ -139,9 +139,9 @@ std::string createPsychedelicGif(const GifSettings& settings, const std::string&
                 cv::resize(current_image, resized_image, cv::Size(scaled_width, scaled_height), 0, 0, cv::INTER_LANCZOS4);
 
                 double angle_degrees = 0;
-                if (settings.rotation_direction == "Left") {
+                if (settings.rotation_direction == "Clockwise") {
                     angle_degrees = std::fmod((static_cast<double>(i) * settings.rotation_speed), 360.0);
-                } else if (settings.rotation_direction == "Right") {
+                } else if (settings.rotation_direction == "Counter-Clockwise") {
                     angle_degrees = std::fmod((-static_cast<double>(i) * settings.rotation_speed), 360.0);
                 }
 
