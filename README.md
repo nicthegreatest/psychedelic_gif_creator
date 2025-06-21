@@ -12,17 +12,9 @@ Turn images in to trippy psychedelic GIFs
 * **Advanced Effects**: Dive deeper with options for layers, blur, starfields, global zoom, pixelation, color inversion, and wave distortions.
 * **Randomization**: Explore unpredictable visual styles with a "Cosmic Chaos" option.
 * **Background Processing**: Generate GIFs without freezing the application.
+* **Live Preview**: Preview changes before you render
 
-## How to Use
-
-1.  **Launch the App**: Run the `gif_creator_gui` executable.
-2.  **Select Image**: Click "Browse" to choose your input image file.
-3.  **Adjust Settings**:
-    * Use the sliders in "Core Settings" for basic adjustments.
-    * Click "Advanced Settings" for more intricate effects and patterns. Inside the Advanced Settings dialog, you can also "Reset to Default" or try "Cosmic Chaos" for random effects.
-4.  **Generate GIF**: Click the "Launch" button.
-5.  **Save GIF**: Choose an output location and filename for your psychedelic masterpiece.
-
+  
 ## Building from Source
 
 This project uses CMake and Qt5. OpenCV is required for image processing.
