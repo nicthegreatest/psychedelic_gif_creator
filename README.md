@@ -56,9 +56,3 @@ This project uses CMake and Qt5. OpenCV is required for image processing.
     ```bash
     ./gif_creator_gui
     ```
-
-## Contributing
-
-Feel free to open issues or submit pull requests.
-
----
