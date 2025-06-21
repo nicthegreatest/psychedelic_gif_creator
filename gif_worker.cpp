@@ -143,6 +143,33 @@ void GifWorker::process() {
             current_layer_scale *= m_settings.scale_decay;
         }
         
+        // Apply Vignette effect
+        if (m_settings.vignette_strength > 0.0) {
+            cv::Mat vignette_mask(height, width, CV_32FC1);
+            cv::Point2f center(width / 2.0F, height / 2.0F);
+            double max_dist = std::sqrt(center.x * center.x + center.y * center.y);
+
+            for (int r = 0; r < height; ++r) {
+                for (int c = 0; c < width; ++c) {
+                    double dist = cv::norm(cv::Point2f(c, r) - center);
+                    double normalized_dist = dist / max_dist;
+                    // Apply a power function to the normalized distance for a smoother falloff
+                    double vignette_value = 1.0 - m_settings.vignette_strength * std::pow(normalized_dist, 2.0);
+                    vignette_mask.at<float>(r, c) = static_cast<float>(std::max(0.0, std::min(1.0, vignette_value)));
+                }
+            }
+
+            for (int r = 0; r < height; ++r) {
+                for (int c = 0; c < width; ++c) {
+                    cv::Vec4b& pixel = frame.at<cv::Vec4b>(r, c);
+                    float mask_val = vignette_mask.at<float>(r, c);
+                    for (int k = 0; k < 3; ++k) { // Apply to B, G, R channels
+                        pixel[k] = static_cast<uchar>(pixel[k] * mask_val);
+                    }
+                }
+            }
+        }
+
         double global_scale = 1.0;
         if (m_settings.global_zoom_mode == "Linear") {
             global_scale = 1.0 + (m_settings.linear_zoom_speed * frame_progress);

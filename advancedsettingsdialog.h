@@ -36,9 +36,11 @@ private:
     QSpinBox* maxLayersSpinBox;
     QSlider* blurRadiusSlider;
     QDoubleSpinBox* blurRadiusSpinBox;
+    QSlider* vignetteSlider; // New vignette slider
+    QDoubleSpinBox* vignetteSpinBox; // New vignette spinbox
     QSlider* numStarsSlider;
     QSpinBox* numStarsSpinBox;
-    QComboBox* starfieldPatternCombo; // Added control for star patterns
+    QComboBox* starfieldPatternCombo;
     QSlider* pixelationSlider;
     QSpinBox* pixelationSpinBox;
     QSlider* colorInvertSlider;

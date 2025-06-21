@@ -6,7 +6,7 @@
 AdvancedSettingsDialog::AdvancedSettingsDialog(GifSettings* settings, QWidget *parent)
     : QDialog(parent), settingsPtr(settings) {
     setWindowTitle("Advanced Cosmic Tweaks");
-    setMinimumSize(500, 480);
+    setMinimumSize(500, 520); // Increased height for new control
     setModal(true);
     setupUi();
     setupConnections();
@@ -44,6 +44,18 @@ void AdvancedSettingsDialog::setupUi() {
     blurRadiusSpinBox->setDecimals(1);
     blurRadiusSpinBox->setFixedWidth(80);
     grid->addWidget(blurRadiusSpinBox, row, 2);
+    row++;
+
+    grid->addWidget(new QLabel("Vignette:"), row, 0);
+    vignetteSlider = new QSlider(Qt::Horizontal);
+    vignetteSlider->setRange(0, 100);
+    grid->addWidget(vignetteSlider, row, 1);
+    vignetteSpinBox = new QDoubleSpinBox();
+    vignetteSpinBox->setRange(0.0, 1.0);
+    vignetteSpinBox->setSingleStep(0.01);
+    vignetteSpinBox->setDecimals(2);
+    vignetteSpinBox->setFixedWidth(80);
+    grid->addWidget(vignetteSpinBox, row, 2);
     row++;
 
     grid->addWidget(new QLabel("Stars:"), row, 0);
@@ -150,6 +162,7 @@ void AdvancedSettingsDialog::setupConnections() {
     connectIntSlider(colorInvertSlider, colorInvertSpinBox, settingsPtr->color_invert_frequency);
     
     connectDoubleSlider(blurRadiusSlider, blurRadiusSpinBox, settingsPtr->blur_radius);
+    connectDoubleSlider(vignetteSlider, vignetteSpinBox, settingsPtr->vignette_strength, 100.0);
     connectDoubleSlider(waveAmplitudeSlider, waveAmplitudeSpinBox, settingsPtr->wave_amplitude);
     connectDoubleSlider(waveFrequencySlider, waveFrequencySpinBox, settingsPtr->wave_frequency, 100.0);
 
@@ -170,6 +183,7 @@ void AdvancedSettingsDialog::randomizeSettingsInDialog() {
     
     settingsPtr->max_layers = std::uniform_int_distribution<>(5, 20)(gen);
     settingsPtr->blur_radius = std::uniform_real_distribution<>(0.0, 3.0)(gen);
+    settingsPtr->vignette_strength = std::uniform_real_distribution<>(0.0, 0.75)(gen);
     settingsPtr->num_stars = std::uniform_int_distribution<>(0, 500)(gen);
     settingsPtr->advanced_starfield_pattern = starfieldPatternCombo->itemText(std::uniform_int_distribution<>(0, 2)(gen)).toStdString();
     settingsPtr->pixelation_level = std::uniform_int_distribution<>(0, 10)(gen);
@@ -200,6 +214,8 @@ void AdvancedSettingsDialog::updateDialogUiFromSettings() {
     maxLayersSpinBox->setValue(settingsPtr->max_layers);
     blurRadiusSlider->setValue(static_cast<int>(settingsPtr->blur_radius * 10));
     blurRadiusSpinBox->setValue(settingsPtr->blur_radius);
+    vignetteSlider->setValue(static_cast<int>(settingsPtr->vignette_strength * 100));
+    vignetteSpinBox->setValue(settingsPtr->vignette_strength);
     numStarsSlider->setValue(settingsPtr->num_stars);
     numStarsSpinBox->setValue(settingsPtr->num_stars);
     starfieldPatternCombo->setCurrentText(QString::fromStdString(settingsPtr->advanced_starfield_pattern));

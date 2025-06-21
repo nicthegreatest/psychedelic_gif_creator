@@ -229,7 +229,7 @@ void MainWindow::setupConnections() {
     connect(previewCheckBox, &QCheckBox::toggled, this, &MainWindow::triggerPreviewUpdate);
     connect(rotationDirectionCombo, &QComboBox::currentTextChanged, this, &MainWindow::triggerPreviewUpdate);
     connect(zoomModeComboBox, &QComboBox::currentTextChanged, this, &MainWindow::triggerPreviewUpdate);
-
+    connect(zoomModeComboBox, &QComboBox::currentTextChanged, this, &MainWindow::on_zoomModeComboBox_currentIndexChanged);
     connect(numFramesSlider, &QSlider::valueChanged, numFramesSpinBox, &QSpinBox::setValue);
     connect(numFramesSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), numFramesSlider, &QSlider::setValue);
     connect(numFramesSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int val){ 
@@ -365,6 +365,7 @@ void MainWindow::refreshCoreSettingsUi() {
 
 void MainWindow::on_zoomModeComboBox_currentIndexChanged(const QString& text) {
     currentSettings.global_zoom_mode = text.toStdString();
+    updateZoomControlVisibility();
     triggerPreviewUpdate();
 }
 
@@ -483,6 +484,32 @@ void MainWindow::generatePreviewFrame() {
         current_layer_scale *= currentSettings.scale_decay;
     }
     
+    // Apply Vignette effect for preview
+    if (currentSettings.vignette_strength > 0.0) {
+        cv::Mat vignette_mask(height, width, CV_32FC1);
+        cv::Point2f center(width / 2.0F, height / 2.0F);
+        double max_dist = std::sqrt(center.x * center.x + center.y * center.y);
+
+        for (int r = 0; r < height; ++r) {
+            for (int c = 0; c < width; ++c) {
+                double dist = cv::norm(cv::Point2f(c, r) - center);
+                double normalized_dist = dist / max_dist;
+                double vignette_value = 1.0 - currentSettings.vignette_strength * std::pow(normalized_dist, 2.0);
+                vignette_mask.at<float>(r, c) = static_cast<float>(std::max(0.0, std::min(1.0, vignette_value)));
+            }
+        }
+
+        for (int r = 0; r < height; ++r) {
+            for (int c = 0; c < width; ++c) {
+                cv::Vec4b& pixel = frame.at<cv::Vec4b>(r, c);
+                float mask_val = vignette_mask.at<float>(r, c);
+                for (int k = 0; k < 3; ++k) {
+                    pixel[k] = static_cast<uchar>(pixel[k] * mask_val);
+                }
+            }
+        }
+    }
+
     double global_scale = 1.0;
     if (currentSettings.global_zoom_mode == "Linear") {
         global_scale = 1.0 + (currentSettings.linear_zoom_speed * frame_progress);
