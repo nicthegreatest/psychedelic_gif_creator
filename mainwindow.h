@@ -17,6 +17,8 @@
 #include <QHBoxLayout>
 #include <QGridLayout>
 #include <QList>
+#include <QCheckBox>
+#include <QTimer>
 
 #include "gif_settings.h"
 
@@ -38,14 +40,17 @@ private slots:
     void handleGenerationFinished(bool success, const QString& pathOrMessage);
     void refreshCoreSettingsUi();
     void on_zoomModeComboBox_currentIndexChanged(const QString& text);
+    void triggerPreviewUpdate(); // New slot to trigger preview updates
+    void generatePreviewFrame(); // New slot to perform the preview render
 
 private:
     GifSettings currentSettings;
     GifWorker* worker = nullptr;
     QThread* workerThread = nullptr;
 
-    // GUI Widgets
-    QLabel* imagePreviewLabel;
+    // --- GUI Widgets ---
+    QCheckBox* previewCheckBox; // New checkbox to enable/disable preview
+    QLabel* previewRenderLabel; // Replaces the old static image label
     QLineEdit* imagePathEdit;
     QPushButton* browseButton;
     
@@ -80,16 +85,17 @@ private:
     QSlider* oscillatingZoomSpeedSlider;
     QDoubleSpinBox* oscillatingZoomSpeedSpinBox;
     
-    // New controls for zoom midpoint
     QLabel* oscillatingZoomMidpointLabel;
     QSlider* oscillatingZoomMidpointSlider;
     QDoubleSpinBox* oscillatingZoomMidpointSpinBox;
 
     QList<QWidget*> m_controlsToManage;
+    QTimer* previewUpdateTimer; // New timer for debouncing UI updates
 
     void setupUi();
     void setupConnections();
     void updateZoomControlVisibility();
+    void showStaticPreview(); // New helper to show the original image
 };
 
 #endif // MAINWINDOW_H

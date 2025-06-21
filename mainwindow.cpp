@@ -11,6 +11,13 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QFileInfo>
+#include <QStyle>
+
+#include <opencv2/opencv.hpp>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent),
     worker(nullptr), workerThread(nullptr)
@@ -18,6 +25,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent),
     setWindowTitle("Psychedelic GIF Creator");
     resize(800, 800);
     currentSettings = GifSettings::getDefaultSettings();
+    
+    previewUpdateTimer = new QTimer(this);
+    previewUpdateTimer->setSingleShot(true);
+    connect(previewUpdateTimer, &QTimer::timeout, this, &MainWindow::generatePreviewFrame);
+
     setupUi();
     setupConnections();
     refreshCoreSettingsUi();
@@ -37,14 +49,22 @@ void MainWindow::setupUi() {
     auto mainLayout = new QVBoxLayout(centralWidget);
     mainLayout->setContentsMargins(20, 20, 20, 20);
     mainLayout->setSpacing(15);
+    
+    auto previewControlsLayout = new QHBoxLayout();
+    previewCheckBox = new QCheckBox("Enable Real-time Preview");
+    previewCheckBox->setChecked(true);
+    previewControlsLayout->addStretch();
+    previewControlsLayout->addWidget(previewCheckBox);
+    mainLayout->addLayout(previewControlsLayout);
+    m_controlsToManage.append(previewCheckBox);
 
-    imagePreviewLabel = new QLabel("Select an image to begin...");
-    imagePreviewLabel->setAlignment(Qt::AlignCenter);
-    imagePreviewLabel->setMinimumSize(400, 250);
-    imagePreviewLabel->setStyleSheet("background-color: #1A1A2E; color: #888888; border: 2px dashed #4A5763; border-radius: 10px;");
-    imagePreviewLabel->setWordWrap(true);
-    mainLayout->addWidget(imagePreviewLabel, 1, Qt::AlignCenter);
-    m_controlsToManage.append(imagePreviewLabel);
+    previewRenderLabel = new QLabel("Select an image to begin...");
+    previewRenderLabel->setAlignment(Qt::AlignCenter);
+    previewRenderLabel->setMinimumSize(400, 250);
+    previewRenderLabel->setStyleSheet("background-color: #1A1A2E; color: #888888; border: 2px dashed #4A5763; border-radius: 10px;");
+    previewRenderLabel->setWordWrap(true);
+    mainLayout->addWidget(previewRenderLabel, 1, Qt::AlignCenter);
+    m_controlsToManage.append(previewRenderLabel);
 
 
     auto inputGroup = new QGroupBox("Input Artifact");
@@ -205,12 +225,17 @@ void MainWindow::setupConnections() {
     connect(advancedButton, &QPushButton::clicked, this, &MainWindow::openAdvancedSettings);
     connect(generateButton, &QPushButton::clicked, this, &MainWindow::startGifGeneration);
     
-    connect(rotationDirectionCombo, &QComboBox::currentTextChanged, this, [this](const QString& text){ currentSettings.rotation_direction = text.toStdString(); });
-    connect(zoomModeComboBox, &QComboBox::currentTextChanged, this, &MainWindow::on_zoomModeComboBox_currentIndexChanged);
+    // Connect controls to the preview update trigger
+    connect(previewCheckBox, &QCheckBox::toggled, this, &MainWindow::triggerPreviewUpdate);
+    connect(rotationDirectionCombo, &QComboBox::currentTextChanged, this, &MainWindow::triggerPreviewUpdate);
+    connect(zoomModeComboBox, &QComboBox::currentTextChanged, this, &MainWindow::triggerPreviewUpdate);
 
     connect(numFramesSlider, &QSlider::valueChanged, numFramesSpinBox, &QSpinBox::setValue);
     connect(numFramesSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), numFramesSlider, &QSlider::setValue);
-    connect(numFramesSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int val){ currentSettings.num_frames = val; });
+    connect(numFramesSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int val){ 
+        currentSettings.num_frames = val; 
+        triggerPreviewUpdate();
+    });
     
     auto connectDoubleSlider = [this](QSlider* slider, QDoubleSpinBox* spinBox, double& setting, double factor = 100.0){
         connect(slider, &QSlider::valueChanged, this, [=, &setting](int val){
@@ -219,12 +244,14 @@ void MainWindow::setupConnections() {
             spinBox->setValue(newVal);
             spinBox->blockSignals(false);
             setting = newVal;
+            triggerPreviewUpdate();
         });
         connect(spinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [=, &setting](double val){
             slider->blockSignals(true);
             slider->setValue(static_cast<int>(val * factor));
             slider->blockSignals(false);
             setting = val;
+            triggerPreviewUpdate();
         });
     };
     
@@ -245,14 +272,14 @@ void MainWindow::browseImage() {
     imagePathEdit->setText(filePath);
     currentSettings.image_path = filePath.toStdString();
     
-    QPixmap pixmap(filePath);
-    imagePreviewLabel->setPixmap(pixmap.scaled(imagePreviewLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    showStaticPreview();
+    triggerPreviewUpdate();
 }
 
-// --- THIS FUNCTION WAS MISSING ---
 void MainWindow::openAdvancedSettings() {
     AdvancedSettingsDialog advDialog(&currentSettings, this);
     connect(&advDialog, &AdvancedSettingsDialog::settingsChanged, this, &MainWindow::refreshCoreSettingsUi);
+    connect(&advDialog, &QDialog::finished, this, &MainWindow::triggerPreviewUpdate);
     advDialog.exec();
 }
 
@@ -338,7 +365,7 @@ void MainWindow::refreshCoreSettingsUi() {
 
 void MainWindow::on_zoomModeComboBox_currentIndexChanged(const QString& text) {
     currentSettings.global_zoom_mode = text.toStdString();
-    updateZoomControlVisibility();
+    triggerPreviewUpdate();
 }
 
 void MainWindow::updateZoomControlVisibility() {
@@ -356,4 +383,138 @@ void MainWindow::updateZoomControlVisibility() {
     oscillatingZoomMidpointLabel->setVisible(isOscillating);
     oscillatingZoomMidpointSlider->setVisible(isOscillating);
     oscillatingZoomMidpointSpinBox->setVisible(isOscillating);
+}
+
+void MainWindow::showStaticPreview() {
+    if (currentSettings.image_path.empty()) {
+        previewRenderLabel->setText("Select an image to begin...");
+        return;
+    }
+    QPixmap pixmap(QString::fromStdString(currentSettings.image_path));
+    if (pixmap.isNull()) {
+        previewRenderLabel->setText("Error: Could not load image file.");
+        return;
+    }
+    previewRenderLabel->setPixmap(pixmap.scaled(previewRenderLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+}
+
+void MainWindow::triggerPreviewUpdate() {
+    previewUpdateTimer->start(200); 
+}
+
+void MainWindow::generatePreviewFrame() {
+    if (!previewCheckBox->isChecked()) {
+        showStaticPreview();
+        return;
+    }
+    if (currentSettings.image_path.empty()) {
+        previewRenderLabel->setText("Select an image to begin...");
+        return;
+    }
+
+    const int PREVIEW_SIZE = 250;
+    
+    cv::Mat original_image_bgr = cv::imread(currentSettings.image_path, cv::IMREAD_UNCHANGED);
+    if (original_image_bgr.empty()) {
+        previewRenderLabel->setText("Error: Could not load image file.");
+        return;
+    }
+
+    cv::Mat original_image_rgba;
+    if (original_image_bgr.channels() < 4) {
+         cv::cvtColor(original_image_bgr, original_image_rgba, cv::COLOR_BGR2BGRA);
+    } else {
+        original_image_rgba = original_image_bgr.clone();
+    }
+    cv::resize(original_image_rgba, original_image_rgba, cv::Size(PREVIEW_SIZE, PREVIEW_SIZE), 0, 0, cv::INTER_AREA);
+
+    int width = original_image_rgba.cols;
+    int height = original_image_rgba.rows;
+    
+    int i = currentSettings.num_frames / 2;
+
+    cv::Mat frame = cv::Mat::zeros(height, width, CV_8UC4);
+    double frame_progress = static_cast<double>(i) / currentSettings.num_frames;
+    
+    double num_rotations = std::round(currentSettings.rotation_speed / 2.0);
+    double total_rotation_degrees = num_rotations * 360.0;
+    if (currentSettings.rotation_direction == "Counter-Clockwise") total_rotation_degrees *= -1.0;
+    else if (currentSettings.rotation_direction == "None") total_rotation_degrees = 0.0;
+    double angle_per_frame = (currentSettings.num_frames > 0) ? (total_rotation_degrees / currentSettings.num_frames) : 0.0;
+
+    double effective_max_scale = 1.0;
+    double current_layer_scale = effective_max_scale;
+        
+    for (int layer = 0; layer < currentSettings.max_layers; ++layer) {
+        int scaled_width = static_cast<int>(width * current_layer_scale);
+        int scaled_height = static_cast<int>(height * current_layer_scale);
+        if (scaled_width < 1 || scaled_height < 1) break;
+        cv::Mat resized_image;
+        cv::resize(original_image_rgba, resized_image, cv::Size(scaled_width, scaled_height), 0, 0, cv::INTER_AREA);
+        double angle_degrees = angle_per_frame * i;
+        cv::Point2f center(scaled_width / 2.0F, scaled_height / 2.0F);
+        cv::Mat rot_mat = cv::getRotationMatrix2D(center, angle_degrees, 1.0);
+        cv::Mat rotated_image;
+        cv::warpAffine(resized_image, rotated_image, rot_mat, resized_image.size(), cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(0,0,0,0));
+        int paste_x = (width/2) - (scaled_width/2);
+        int paste_y = (height/2) - (scaled_height/2);
+        cv::Rect roi(paste_x, paste_y, rotated_image.cols, rotated_image.rows);
+        cv::Rect frame_roi(0, 0, frame.cols, frame.rows);
+        cv::Rect intersection = roi & frame_roi;
+        if (intersection.empty()) continue;
+        cv::Mat frame_sub_view = frame(intersection);
+        cv::Mat rotated_sub_view = rotated_image(cv::Rect(intersection.x-roi.x, intersection.y-roi.y, intersection.width, intersection.height));
+        for (int r = 0; r < intersection.height; ++r) {
+            for (int c = 0; c < intersection.width; ++c) {
+                cv::Vec4b& frame_pixel = frame_sub_view.at<cv::Vec4b>(r, c);
+                cv::Vec4b& rotated_pixel = rotated_sub_view.at<cv::Vec4b>(r, c);
+                if (rotated_pixel[3] == 0) continue;
+                double alpha_rotated = rotated_pixel[3] / 255.0;
+                double alpha_frame = frame_pixel[3] / 255.0;
+                double new_alpha = alpha_rotated + alpha_frame * (1 - alpha_rotated);
+                if (new_alpha > 0) {
+                    for (int k = 0; k < 3; ++k) {
+                        frame_pixel[k] = static_cast<uchar>((rotated_pixel[k] * alpha_rotated + frame_pixel[k] * alpha_frame * (1 - alpha_rotated)) / new_alpha);
+                    }
+                    frame_pixel[3] = static_cast<uchar>(new_alpha * 255);
+                }
+            }
+        }
+        current_layer_scale *= currentSettings.scale_decay;
+    }
+    
+    double global_scale = 1.0;
+    if (currentSettings.global_zoom_mode == "Linear") {
+        global_scale = 1.0 + (currentSettings.linear_zoom_speed * frame_progress);
+    } else if (currentSettings.global_zoom_mode == "Oscillating") {
+        double sine_wave = sin(frame_progress * 2.0 * M_PI * currentSettings.oscillating_zoom_frequency);
+        double zoom_center = currentSettings.oscillating_zoom_midpoint;
+        global_scale = zoom_center + (currentSettings.oscillating_zoom_amplitude * sine_wave);
+    }
+
+    if (global_scale != 1.0) {
+        cv::Mat zoom_matrix = cv::getRotationMatrix2D(cv::Point2f(width / 2.0f, height / 2.0f), 0.0, global_scale);
+        cv::warpAffine(frame, frame, zoom_matrix, frame.size(), cv::INTER_LINEAR, cv::BORDER_REFLECT_101);
+    }
+
+    if (currentSettings.hue_speed > 0 && currentSettings.hue_intensity > 0) {
+        cv::Mat hsv_frame, temp_bgr;
+        cv::cvtColor(frame, temp_bgr, cv::COLOR_BGRA2BGR);
+        cv::cvtColor(temp_bgr, hsv_frame, cv::COLOR_BGR2HSV);
+        double saturation_pulse = sin(frame_progress * 2.0 * M_PI * (currentSettings.hue_speed / 4.0));
+        double saturation_multiplier = 1.0 + (saturation_pulse * (currentSettings.hue_intensity - 1.0));
+        for (int r = 0; r < hsv_frame.rows; ++r) {
+            for (int c = 0; c < hsv_frame.cols; ++c) {
+                auto& pixel = hsv_frame.at<cv::Vec3b>(r, c);
+                pixel[0] = static_cast<uchar>(std::fmod((pixel[0] + (i * currentSettings.hue_speed)), 180.0));
+                pixel[1] = cv::saturate_cast<uchar>(pixel[1] * saturation_multiplier);
+            }
+        }
+        cv::cvtColor(hsv_frame, temp_bgr, cv::COLOR_HSV2BGR);
+        cv::cvtColor(temp_bgr, frame, cv::COLOR_BGR2BGRA);
+    }
+    
+    cv::cvtColor(frame, frame, cv::COLOR_BGRA2RGBA);
+    QImage preview_qimage(frame.data, frame.cols, frame.rows, frame.step, QImage::Format_RGBA8888);
+    previewRenderLabel->setPixmap(QPixmap::fromImage(preview_qimage.copy()).scaled(previewRenderLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }

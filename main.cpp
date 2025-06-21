@@ -65,7 +65,6 @@ int main(int argc, char *argv[]) {
             border: 1px solid #64FFDA;
         }
 
-        /* --- MODIFICATION: Style the up/down buttons on SpinBoxes --- */
         QSpinBox::up-button, QDoubleSpinBox::up-button,
         QSpinBox::down-button, QDoubleSpinBox::down-button {
             background-color: #3A4750;
@@ -87,7 +86,6 @@ int main(int argc, char *argv[]) {
             border-top: 3px solid #E0E0E0;
             width: 0px; height: 0px;
         }
-        /* --- END MODIFICATION --- */
 
 
         /* Push Buttons (General) */
@@ -180,6 +178,27 @@ int main(int argc, char *argv[]) {
             border-radius: 5px;
             selection-background-color: #64FFDA;
             selection-color: #1A1A2E;
+        }
+
+        /* --- Checkbox Styling --- */
+        QCheckBox {
+            spacing: 10px;
+        }
+        QCheckBox::indicator {
+            border: 1px solid #3A4750;
+            border-radius: 3px;
+            width: 15px;
+            height: 15px;
+            background-color: #1A1A2E;
+        }
+        QCheckBox::indicator:hover {
+            border: 1px solid #4A5763;
+        }
+        QCheckBox::indicator:checked {
+            background-color: #24293D;
+            border: 1px solid #64FFDA;
+            /* Using a more robust SVG encoding for the checkmark */
+            image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M2.5 6.5l2.5 2.5l5 -5' stroke='%2364ffda' stroke-width='2' fill='none'/%3E%3C/svg%3E");
         }
 
         /* Progress Bar */
