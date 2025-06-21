@@ -1,5 +1,6 @@
 # Psychedelic GIF Creator
-![gif_create](https://github.com/user-attachments/assets/a96edae3-7c4c-404e-8f93-cccae3f1a3af)
+![gif_create](https://github.com/user-attachments/assets/fb969e92-eec9-459a-8ee5-4c67440816cb)
+
 
 Turn images in to trippy psychedelic GIFs
 
