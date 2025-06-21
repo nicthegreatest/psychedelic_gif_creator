@@ -7,61 +7,63 @@
 
 // This struct holds all the configurable settings for GIF generation.
 struct GifSettings {
+    // Core Settings
     std::string image_path = "";
-    int num_frames = 20;
-    double max_scale = 0.9;
-    double scale_decay = 0.8;
-    int rotation_speed = 18;
-    double hue_speed = 12.8;
-    int max_layers = 10;
-    double blur_radius = 1.0;
-    int num_stars = 100;
+    int num_frames = 60;
     std::string rotation_direction = "Clockwise";
-    std::string advanced_fractal_type = "Sierpinski";
-    std::string advanced_starfield_pattern = "Random";
+    double rotation_speed = 3.6; 
+    
+    // Layering / Tunnel Effect Settings
+    int max_layers = 10;
+    double scale_decay = 0.85;
 
-    // --- New: Oscillating Zoom Parameters ---
-    double oscillating_zoom_amplitude = 0.15; // Amplitude of the oscillation
-    double oscillating_zoom_frequency = 0.5; // Frequency of the oscillation
-
-    // --- New Psychedelic Effect Parameters ---
-    double global_zoom_speed = 0.0;
+    // Post-Processing Effects
+    int num_stars = 0;
+    std::string advanced_starfield_pattern = "None";
     int pixelation_level = 0;
-    int color_invert_frequency = 0;
+    int color_invert_frequency = 0; 
     double wave_amplitude = 0.0;
     double wave_frequency = 0.0;
     std::string wave_direction = "None";
+    double blur_radius = 0.0;
+    double hue_speed = 3.6;
+    double hue_intensity = 1.0;
+    
+    // Global Zoom Settings
+    std::string global_zoom_mode = "Oscillating";
+    double linear_zoom_speed = 0.5;
+    double oscillating_zoom_amplitude = 0.1;
+    double oscillating_zoom_frequency = 1.0;
+    double oscillating_zoom_midpoint = 1.0; // New setting for zoom center
 
-    // NEW: Global Zoom Mode
-    std::string global_zoom_mode = "Linear"; // Default to linear zoom
-
-    // Static method to get a GifSettings object with your desired app-wide default values
+    // Static method to get a GifSettings object with default values
     static GifSettings getDefaultSettings() {
         GifSettings defaults;
         defaults.image_path = "";
         defaults.num_frames = 60;
-        defaults.max_scale = 0.9;
-        defaults.scale_decay = 0.8;
-        defaults.rotation_speed = 6;
-        defaults.hue_speed = 3.6;
         defaults.rotation_direction = "Clockwise";
+        defaults.rotation_speed = 3.6;
 
-        defaults.max_layers = 5;
-        defaults.blur_radius = 0.2;
-        defaults.num_stars = 110;
-        defaults.global_zoom_speed = 0.100; // Keep your desired default speed
+        defaults.max_layers = 10;
+        defaults.scale_decay = 0.85;
+
+        defaults.num_stars = 0;
+        defaults.advanced_starfield_pattern = "None";
         defaults.pixelation_level = 0;
-        defaults.color_invert_frequency = 18;
-        defaults.wave_amplitude = 1.1;
-        defaults.wave_frequency = 0.33;
+        defaults.color_invert_frequency = 0;
+        defaults.wave_amplitude = 0.0;
+        defaults.wave_frequency = 0.0;
         defaults.wave_direction = "None";
-        defaults.advanced_fractal_type = "Sierpinski";
-        defaults.advanced_starfield_pattern = "Random";
+        defaults.blur_radius = 0.0;
+        defaults.hue_speed = 3.6;
+        defaults.hue_intensity = 1.0;
+        
+        defaults.global_zoom_mode = "Oscillating";
+        defaults.linear_zoom_speed = 0.5;
+        defaults.oscillating_zoom_amplitude = 0.1;
+        defaults.oscillating_zoom_frequency = 1.0;
+        defaults.oscillating_zoom_midpoint = 1.0; // Default for new setting
 
-
-        defaults.global_zoom_mode = "Oscillating"; // Set default mode to Oscillating Zoom
-        defaults.oscillating_zoom_amplitude = 0.15; // Amplitude of the oscillation
-        defaults.oscillating_zoom_frequency = 0.5; // Frequency of the
         return defaults;
     }
 };

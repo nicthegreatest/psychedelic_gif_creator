@@ -7,13 +7,12 @@
 #include <QSlider>
 #include <QComboBox>
 #include <QPushButton>
-#include <QLineEdit>
+#include <QDoubleSpinBox>
+#include <QSpinBox>
 #include <QVBoxLayout>
 #include <QGridLayout>
 #include <QGroupBox>
-
-#include "gif_settings.h" // Include our GifSettings struct
-
+#include "gif_settings.h"
 
 class AdvancedSettingsDialog : public QDialog {
     Q_OBJECT
@@ -23,95 +22,38 @@ public:
     ~AdvancedSettingsDialog() override = default;
 
 signals:
-    void settingsChanged(); // Signal to notify parent of setting changes
+    void settingsChanged();
 
 private slots:
-    // Slots for the advanced settings controls
-    void onMaxLayersChanged(int value);
-    void onBlurRadiusChanged(int value);
-    void onNumStarsChanged(int value);
-    void onFractalTypeChanged(int index);
-    void onStarfieldPatternChanged(int index);
-
-    // Effect Control Slots
-    void onGlobalZoomSliderChanged(int value);
-    void onGlobalZoomEditFinished();
-
-    // NEW: Slot for Global Zoom Mode
-    void onGlobalZoomModeChanged(int index);
-
-    void onPixelationSliderChanged(int value);
-    void onPixelationEditFinished();
-
-    void onColorInvertSliderChanged(int value);
-    void onColorInvertEditFinished();
-
-    void onWaveAmplitudeSliderChanged(int value);
-    void onWaveAmplitudeEditFinished();
-
-    void onWaveFrequencySliderChanged(int value);
-    void onWaveFrequencyEditFinished();
-
-    void onWaveDirectionChanged(int index);
-
     void randomizeSettingsInDialog();
     void resetToDefaultsInDialog();
-
 
 private:
     GifSettings* settingsPtr;
 
-    // Widgets for advanced settings
+    // Widgets
     QSlider* maxLayersSlider;
-    QLabel* maxLayersValueLabel;
+    QSpinBox* maxLayersSpinBox;
     QSlider* blurRadiusSlider;
-    QLabel* blurRadiusValueLabel;
+    QDoubleSpinBox* blurRadiusSpinBox;
     QSlider* numStarsSlider;
-    QLabel* numStarsValueLabel;
-    QComboBox* fractalTypeCombo;
-    QComboBox* starfieldPatternCombo;
-
-    // New Effect Control Widgets
-    QSlider* globalZoomSlider;
-    QLineEdit* globalZoomEdit;
-    QLabel* globalZoomValueLabel;
-    QComboBox* globalZoomModeCombo; // NEW: Global Zoom Mode ComboBox
-
+    QSpinBox* numStarsSpinBox;
+    QComboBox* starfieldPatternCombo; // Added control for star patterns
     QSlider* pixelationSlider;
-    QLineEdit* pixelationEdit;
-    QLabel* pixelationValueLabel;
-
+    QSpinBox* pixelationSpinBox;
     QSlider* colorInvertSlider;
-    QLineEdit* colorInvertEdit;
-    QLabel* colorInvertValueLabel;
-
+    QSpinBox* colorInvertSpinBox;
     QSlider* waveAmplitudeSlider;
-    QLineEdit* waveAmplitudeEdit;
-    QLabel* waveAmplitudeValueLabel;
-
+    QDoubleSpinBox* waveAmplitudeSpinBox;
     QSlider* waveFrequencySlider;
-    QLineEdit* waveFrequencyEdit;
-    QLabel* waveFrequencyValueLabel;
-
+    QDoubleSpinBox* waveFrequencySpinBox;
     QComboBox* waveDirectionCombo;
 
     QPushButton* randomizeButton;
     QPushButton* defaultButton;
 
-
     void setupUi();
     void setupConnections();
-
-    // Overload for double settings
-    void updateNumericControl(int sliderValue, QSlider* slider, QLineEdit* edit, QLabel* label,
-                              double settingsMin, double settingsMax, double guiScaleFactor,
-                              double& settingsVar, int precision);
-
-    // Overload for integer settings
-    void updateNumericControl(int sliderValue, QSlider* slider, QLineEdit* edit, QLabel* label,
-                              int settingsMin, int settingsMax, double guiScaleFactor,
-                              int& settingsVar);
-
     void updateDialogUiFromSettings();
 };
 

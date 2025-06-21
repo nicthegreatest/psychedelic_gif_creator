@@ -1,698 +1,359 @@
 // mainwindow.cpp
 #include "mainwindow.h"
 #include "advancedsettingsdialog.h"
-#include "gif_worker.h" // NEW: Include gif_worker.h
+#include "gif_worker.h"
 
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QGridLayout>
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QDir>
 #include <QStatusBar>
-#include <random>
-#include <string>
 #include <QDebug>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QFileInfo>
 
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/imgproc.hpp>
-#include <QPixmap>
-#include <QImage>
-
-// --- Constructor ---
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent),
-    worker(nullptr), workerThread(nullptr) // Initialize worker and thread pointers
+    worker(nullptr), workerThread(nullptr)
 {
     setWindowTitle("Psychedelic GIF Creator");
-    resize(800, 700);
-
+    resize(800, 800);
     currentSettings = GifSettings::getDefaultSettings();
-
     setupUi();
     setupConnections();
-    
-    // QThread is created here in the constructor, but NOT started yet.
-    // It will be started in startGifGeneration().
-    workerThread = new QThread(this); // Parent QThread to MainWindow for proper cleanup
-    
     refreshCoreSettingsUi();
 }
 
-// --- Destructor ---
 MainWindow::~MainWindow() {
-    // Ensure the worker thread is terminated and cleaned up properly
     if (workerThread && workerThread->isRunning()) {
         workerThread->quit();
-        workerThread->wait(1000); // Wait up to 1 second for the thread to finish
-        if (workerThread->isRunning()) { // If it's still running, terminate forcefully
-            workerThread->terminate();
-            workerThread->wait(1000);
-        }
+        workerThread->wait();
     }
-    // workerThread and worker will be deleted via QObject::deleteLater connections
-    // initiated in startGifGeneration when the thread finishes.
-    // If the app closes before a generation starts, workerThread will be deleted
-    // by its parent (MainWindow).
-    // If worker was created but never started, workerThread might not have ownership.
-    // So, ensuring the worker is deleted if it exists and is not parented to the thread (it is when moved).
-    // The current setup with deleteLater on QThread::finished is robust.
-    // If the thread was never started, `worker` might still exist and be parented to `this`
-    // or unparented. Adding an explicit `delete worker;` here for robustness if `worker` is not null
-    // and not handled by `deleteLater` via `QThread::finished` (e.g., if startGifGeneration was called
-    // but the thread never truly started or finished normally).
-    // For now, given the `deleteLater` connections, this is usually sufficient.
 }
 
-// --- setupUi Method ---
 void MainWindow::setupUi() {
     QWidget *centralWidget = new QWidget(this);
     setCentralWidget(centralWidget);
 
-    // --- Apply Global Qt Style Sheet (QSS) ---
-    QString styleSheet = R"(
-        /* Global Background and Text Colors */
-        QMainWindow, QWidget {
-            background-color: #1A1A2E; /* Deep dark blue/purple */
-            color: #E0E0E0; /* Light gray for general text */
-            font-family: "Segoe UI", "Roboto", "Open Sans", sans-serif;
-            font-size: 10pt;
-        }
+    auto mainLayout = new QVBoxLayout(centralWidget);
+    mainLayout->setContentsMargins(20, 20, 20, 20);
+    mainLayout->setSpacing(15);
 
-        /* Group Boxes */
-        QGroupBox {
-            background-color: #24293D; /* Slightly lighter dark */
-            border: 1px solid #3A4750; /* Subtle border */
-            border-radius: 8px;
-            margin-top: 1ex; /* Space for title */
-            padding: 10px;
-        }
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            subcontrol-position: top left; /* Position at top left */
-            padding: 0 5px;
-            color: #90CAF9; /* Light blue accent for titles */
-            font-size: 10pt;
-            font-weight: bold;
-        }
-
-        /* Labels */
-        QLabel {
-            color: #E0E0E0; /* Consistent light text */
-            padding: 2px;
-        }
-
-        /* Line Edits (Text Inputs) */
-        QLineEdit {
-            background-color: #1A1A2E; /* Same as main window background */
-            border: 1px solid #3A4750;
-            border-radius: 5px;
-            padding: 5px;
-            color: #64FFDA; /* Teal accent for input text */
-            selection-background-color: #64FFDA;
-            selection-color: #1A1A2E;
-        }
-        QLineEdit:focus {
-            border: 1px solid #64FFDA; /* Accent border on focus */
-        }
-
-        /* Push Buttons (General) */
-        QPushButton {
-            background-color: #3A4750; /* Muted dark button */
-            color: #E0E0E0;
-            border: none;
-            border-radius: 5px;
-            padding: 8px 15px;
-            min-height: 28px; /* Consistent height */
-            font-weight: bold;
-        }
-        QPushButton:hover {
-            background-color: #4A5763; /* Lighter on hover */
-            color: #FFFFFF;
-        }
-        QPushButton:pressed {
-            background-color: #303A45; /* Darker on press */
-            border-style: inset;
-        }
-        QPushButton:disabled {
-            background-color: #2A2A3A;
-            color: #888888;
-        }
-
-        /* Accent Buttons (e.g., Generate Button) */
-        QPushButton#generateButton { /* Using an objectName for specific styling */
-            background-color: #64FFDA; /* Bright Teal */
-            color: #1A1A2E; /* Dark text on bright button */
-        }
-        QPushButton#generateButton:hover {
-            background-color: #7BFFED;
-        }
-        QPushButton#generateButton:pressed {
-            background-color: #58E0C4;
-        }
-        /* Default Button specific style (small, distinct) */
-        /* This style is now for the default button *inside* the Advanced Settings dialog */
-        QPushButton#dialogButton {
-            background-color: #555555; /* Darker grey */
-            color: #BBBBBB;
-            font-size: 8pt; /* Smaller font */
-            padding: 4px 8px; /* Smaller padding */
-            min-height: 20px; /* Smaller height */
-            border-radius: 3px;
-        }
-        QPushButton#dialogButton:hover {
-            background-color: #666666;
-        }
-        QPushButton#dialogButton:pressed {
-            background-color: #444444;
-        }
-
-
-        /* Sliders */
-        QSlider::groove:horizontal {
-            border: 1px solid #3A4750;
-            height: 8px;
-            background: #2A2A3A; /* Dark track */
-            margin: 2px 0;
-            border-radius: 4px;
-        }
-        QSlider::handle:horizontal {
-            background: #64FFDA; /* Accent thumb */
-            border: 1px solid #56B6C2;
-            width: 18px;
-            margin: -5px 0; /* Center handle vertically */
-            border-radius: 9px;
-        }
-        QSlider::sub-page:horizontal {
-            background: #4A5763; /* Filled portion of track */
-            border-radius: 4px;
-        }
-        QSlider::add-page:horizontal {
-            background: #2A2A3A;
-            border-radius: 4px;
-        }
-
-        /* Combo Boxes (Dropdowns) */
-        QComboBox {
-            background-color: #1A1A2E;
-            border: 1px solid #3A4750;
-            border-radius: 5px;
-            padding: 5px;
-            color: #E0E0E0;
-            selection-background-color: #64FFDA; /* Accent for selected item in dropdown list */
-            selection-color: #1A1A2E;
-        }
-        QComboBox::drop-down {
-            border: none; /* No default border */
-            subcontrol-origin: padding;
-            subcontrol-position: top right;
-            width: 20px; /* Size of the dropdown arrow area */
-        }
-        QComboBox::down-arrow {
-            /* Placeholder for an actual SVG/icon. For now, system default */
-            image: url(:/qt-project.org/styles/commonstyle/images/down-arrow.png); /* Example */
-        }
-        QComboBox QAbstractItemView { /* Style for the dropdown list itself */
-            background-color: #24293D;
-            border: 1px solid #3A4750;
-            border-radius: 5px;
-            selection-background-color: #64FFDA;
-            selection-color: #1A1A2E;
-        }
-
-        /* Progress Bar */
-        QProgressBar {
-            border: 1px solid #3A4750;
-            border-radius: 5px;
-            text-align: center;
-            color: #E0E0E0;
-            background-color: #2A2A3A;
-        }
-        QProgressBar::chunk {
-            background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #64FFDA, stop:1 #4A90E2); /* Gradient fill */
-            border-radius: 5px;
-        }
-
-        /* Status Bar */
-        QStatusBar {
-            background-color: #24293D;
-            color: #E0E0E0;
-            border-top: 1px solid #3A4750;
-        }
-        QStatusBar::item {
-            border: none;
-        }
-        QToolTip { /* Tooltip global style */
-            background-color: #3A4750;
-            color: #E0E0E0;
-            border: 1px solid #64FFDA;
-            border-radius: 5px;
-            padding: 5px;
-            opacity: 200; /* Semi-transparent */
-            font-size: 9pt;
-        }
-    )";
-    centralWidget->setStyleSheet(styleSheet);
-
-
-    QVBoxLayout *mainLayout = new QVBoxLayout(centralWidget);
-    mainLayout->setContentsMargins(20, 20, 20, 20); // Add padding around the main layout
-    mainLayout->setSpacing(15); // Add spacing between major sections
-
-    // --- Image Preview/Placeholder ---
-    imagePreviewLabel = new QLabel("Select an image to begin your cosmic journey...");
+    imagePreviewLabel = new QLabel("Select an image to begin...");
     imagePreviewLabel->setAlignment(Qt::AlignCenter);
-    imagePreviewLabel->setFixedSize(400, 250); // Larger fixed size for preview
+    imagePreviewLabel->setMinimumSize(400, 250);
     imagePreviewLabel->setStyleSheet("background-color: #1A1A2E; color: #888888; border: 2px dashed #4A5763; border-radius: 10px;");
-    imagePreviewLabel->setWordWrap(true); // Allow text to wrap
-    mainLayout->addWidget(imagePreviewLabel, 2); // Stretch factor 2 for preview
+    imagePreviewLabel->setWordWrap(true);
+    mainLayout->addWidget(imagePreviewLabel, 1, Qt::AlignCenter);
+    m_controlsToManage.append(imagePreviewLabel);
 
-    // --- Input Section ---
-    QGroupBox *inputGroup = new QGroupBox("Input Artifact");
-    QVBoxLayout *inputLayout = new QVBoxLayout(inputGroup);
-    inputLayout->setContentsMargins(10, 20, 10, 10); // Adjust padding within group box
-    inputLayout->setSpacing(8);
 
-    QHBoxLayout *imagePathLayout = new QHBoxLayout();
-    imagePathLayout->setSpacing(5);
-
-    imagePathEdit = new QLineEdit(QString::fromStdString(currentSettings.image_path));
-    imagePathEdit->setPlaceholderText("Path to your image file (e.g., /home/user/image.png)");
-    imagePathEdit->setToolTip("Enter or browse for the image file to transform.");
-    imagePathLayout->addWidget(imagePathEdit);
-
+    auto inputGroup = new QGroupBox("Input Artifact");
+    auto pathLayout = new QHBoxLayout(inputGroup);
+    imagePathEdit = new QLineEdit();
     browseButton = new QPushButton("Browse");
-    browseButton->setToolTip("Select the input image file.");
-    imagePathLayout->addWidget(browseButton);
-
-    inputLayout->addLayout(imagePathLayout);
+    pathLayout->addWidget(imagePathEdit);
+    pathLayout->addWidget(browseButton);
     mainLayout->addWidget(inputGroup);
+    m_controlsToManage.append(inputGroup);
 
+    auto coreSettingsGroup = new QGroupBox("Core Settings");
+    auto coreLayout = new QGridLayout(coreSettingsGroup);
+    coreLayout->setColumnStretch(1, 1);
 
-    // --- Core Settings Section ---
-    QGroupBox *coreSettingsGroup = new QGroupBox("Core Settings");
-    QVBoxLayout *coreSettingsMainLayout = new QVBoxLayout(coreSettingsGroup);
-    coreSettingsMainLayout->setContentsMargins(10, 20, 10, 10);
-    coreSettingsMainLayout->setSpacing(10);
-
-    QGridLayout *coreSettingsLayout = new QGridLayout();
-    coreSettingsLayout->setColumnStretch(1, 1);
-    coreSettingsLayout->setHorizontalSpacing(10);
-    coreSettingsLayout->setVerticalSpacing(5);
-
-    auto addSliderRow = [&](const QString& labelText, QSlider*& slider, QLabel*& valueLabel, int row, int minVal, int maxVal, const QString& tooltipText) {
-        coreSettingsLayout->addWidget(new QLabel(labelText), row, 0);
+    int row = 0;
+    
+    auto createSliderRow = [&](const QString& label, QSlider*& slider, QWidget*& spinBox, const QString& tooltip) {
+        auto labelWidget = new QLabel(label);
+        labelWidget->setToolTip(tooltip);
+        coreLayout->addWidget(labelWidget, row, 0);
         slider = new QSlider(Qt::Horizontal);
-        slider->setRange(minVal, maxVal);
-        slider->setTickPosition(QSlider::TicksBelow);
-        slider->setTickInterval( (maxVal - minVal) / 10 );
-        coreSettingsLayout->addWidget(slider, row, 1);
-        valueLabel = new QLabel("");
-        valueLabel->setMinimumWidth(50);
-        coreSettingsLayout->addWidget(valueLabel, row, 2);
-        slider->setToolTip(tooltipText);
-        valueLabel->setToolTip(tooltipText);
+        slider->setToolTip(tooltip);
+        coreLayout->addWidget(slider, row, 1);
+        spinBox->setToolTip(tooltip);
+        spinBox->setFixedWidth(80);
+        coreLayout->addWidget(spinBox, row, 2);
+        
+        m_controlsToManage.append(labelWidget);
+        m_controlsToManage.append(slider);
+        m_controlsToManage.append(spinBox);
+        row++;
     };
 
-    // Cycles Slider
-    addSliderRow("Cycles:", numFramesSlider, numFramesValueLabel, 0, 10, 100,
-                 "Number of frames in the GIF. More frames result in a smoother but larger GIF.");
+    numFramesSpinBox = new QSpinBox();
+    createSliderRow("Cycles:", numFramesSlider, reinterpret_cast<QWidget*&>(numFramesSpinBox), "Number of frames in the GIF.");
+    numFramesSlider->setRange(10, 200); numFramesSpinBox->setRange(10, 200);
 
-    // Warp Slider
-    addSliderRow("Warp:", scaleDecaySlider, scaleDecayValueLabel, 1, 50, 95,
-                 "Controls how quickly inner layers shrink (0.50-0.95). Lower values create a more intense tunnel effect.");
+    scaleDecaySpinBox = new QDoubleSpinBox();
+    createSliderRow("Warp:", scaleDecaySlider, reinterpret_cast<QWidget*&>(scaleDecaySpinBox), "Decay rate of layers (0.50-0.99). Smaller is faster.");
+    scaleDecaySlider->setRange(50, 99); scaleDecaySpinBox->setRange(0.50, 0.99);
+    scaleDecaySpinBox->setSingleStep(0.01); scaleDecaySpinBox->setDecimals(2);
 
-    // Spin Speed Slider
-    addSliderRow("Spin Speed:", rotationSpeedSlider, rotationSpeedValueLabel, 2, 0, 30,
-                 "Determines the rotational speed of the psychedelic layers.");
+    hueSpeedSpinBox = new QDoubleSpinBox();
+    createSliderRow("Pulse Speed:", hueSpeedSlider, reinterpret_cast<QWidget*&>(hueSpeedSpinBox), "Controls the speed of the color shifting effect.");
+    hueSpeedSlider->setRange(0, 200); hueSpeedSpinBox->setRange(0.0, 20.0);
+    hueSpeedSpinBox->setSingleStep(0.1); hueSpeedSpinBox->setDecimals(1);
+    
+    hueIntensitySpinBox = new QDoubleSpinBox();
+    createSliderRow("Pulse Intensity:", hueIntensitySlider, reinterpret_cast<QWidget*&>(hueIntensitySpinBox), "Controls the saturation of the color pulse effect. At 0, the effect is disabled.");
+    hueIntensitySlider->setRange(0, 200); hueIntensitySpinBox->setRange(0.0, 2.0);
+    hueIntensitySpinBox->setSingleStep(0.01); hueIntensitySpinBox->setDecimals(2);
 
-    // Pulse Speed Slider
-    addSliderRow("Pulse Speed:", hueSpeedSlider, hueSpeedValueLabel, 3, 0, 200,
-                 "Controls the speed of the color shifting (hue rotation) effect.");
-
-
-    // Spin Direction Dropdown
-    coreSettingsLayout->addWidget(new QLabel("Spin Dir:"), 4, 0);
+    rotationSpeedSpinBox = new QDoubleSpinBox();
+    createSliderRow("Spin Speed:", rotationSpeedSlider, reinterpret_cast<QWidget*&>(rotationSpeedSpinBox), "Determines the total number of full rotations.");
+    rotationSpeedSlider->setRange(0, 100); rotationSpeedSpinBox->setRange(0.0, 10.0);
+    rotationSpeedSpinBox->setSingleStep(0.1); rotationSpeedSpinBox->setDecimals(1);
+    
+    auto spinDirLabel = new QLabel("Spin Dir:");
+    coreLayout->addWidget(spinDirLabel, row, 0);
     rotationDirectionCombo = new QComboBox();
-    rotationDirectionCombo->addItem("Clockwise");
-    rotationDirectionCombo->addItem("Counter-Clockwise");
-    rotationDirectionCombo->addItem("None");
-    rotationDirectionCombo->setToolTip("Choose the direction of the rotational animation.");
-    coreSettingsLayout->addWidget(rotationDirectionCombo, 4, 1, 1, 2);
-
-    // --- NEW: Zoom Mode Dropdown ---
-    zoomModeLabel = new QLabel("Zoom Mode:");
+    rotationDirectionCombo->addItems({"Clockwise", "Counter-Clockwise", "None"});
+    coreLayout->addWidget(rotationDirectionCombo, row, 1, 1, 2);
+    m_controlsToManage.append(spinDirLabel);
+    m_controlsToManage.append(rotationDirectionCombo);
+    row++;
+    
+    auto zoomModeLabel = new QLabel("Zoom Mode:");
+    coreLayout->addWidget(zoomModeLabel, row, 0);
     zoomModeComboBox = new QComboBox();
-    zoomModeComboBox->addItem("Linear");
-    zoomModeComboBox->addItem("Oscillating");
-    zoomModeComboBox->setToolTip("Select the type of global zoom effect.");
-    coreSettingsLayout->addWidget(zoomModeLabel, 5, 0);
-    coreSettingsLayout->addWidget(zoomModeComboBox, 5, 1, 1, 2);
+    zoomModeComboBox->addItems({"Oscillating", "Linear", "None"});
+    coreLayout->addWidget(zoomModeComboBox, row, 1, 1, 2);
+    m_controlsToManage.append(zoomModeLabel);
+    m_controlsToManage.append(zoomModeComboBox);
+    row++;
 
-    // --- NEW: Oscillating Zoom Amplitude SpinBox ---
-    oscillatingZoomAmplitudeLabel = new QLabel("Oscillating Amplitude:");
-    oscillatingZoomAmplitudeSpinBox = new QDoubleSpinBox();
-    oscillatingZoomAmplitudeSpinBox->setRange(0.0, 2.0);
-    oscillatingZoomAmplitudeSpinBox->setSingleStep(0.01);
-    oscillatingZoomAmplitudeSpinBox->setDecimals(2);
-    oscillatingZoomAmplitudeSpinBox->setToolTip("The intensity of the oscillating zoom effect.");
-    coreSettingsLayout->addWidget(oscillatingZoomAmplitudeLabel, 6, 0);
-    coreSettingsLayout->addWidget(oscillatingZoomAmplitudeSpinBox, 6, 1, 1, 2);
+    linearZoomStrengthLabel = new QLabel("Linear Strength:");
+    coreLayout->addWidget(linearZoomStrengthLabel, row, 0);
+    linearZoomStrengthSlider = new QSlider(Qt::Horizontal);
+    coreLayout->addWidget(linearZoomStrengthSlider, row, 1);
+    linearZoomStrengthSpinBox = new QDoubleSpinBox();
+    linearZoomStrengthSpinBox->setFixedWidth(80);
+    coreLayout->addWidget(linearZoomStrengthSpinBox, row, 2);
+    linearZoomStrengthSlider->setRange(0, 200); linearZoomStrengthSpinBox->setRange(0.0, 2.0);
+    linearZoomStrengthSpinBox->setSingleStep(0.01); linearZoomStrengthSpinBox->setDecimals(2);
+    m_controlsToManage.append(linearZoomStrengthLabel);
+    m_controlsToManage.append(linearZoomStrengthSlider);
+    m_controlsToManage.append(linearZoomStrengthSpinBox);
+    row++;
 
-    // --- NEW: Oscillating Zoom Frequency SpinBox ---
-    oscillatingZoomFrequencyLabel = new QLabel("Oscillating Frequency (Cycles):");
-    oscillatingZoomFrequencySpinBox = new QDoubleSpinBox();
-    oscillatingZoomFrequencySpinBox->setRange(0.0, 5.0);
-    oscillatingZoomFrequencySpinBox->setSingleStep(0.1);
-    oscillatingZoomFrequencySpinBox->setDecimals(2);
-    oscillatingZoomFrequencySpinBox->setToolTip("The number of full zoom cycles over the GIF duration.");
-    coreSettingsLayout->addWidget(oscillatingZoomFrequencyLabel, 7, 0);
-    coreSettingsLayout->addWidget(oscillatingZoomFrequencySpinBox, 7, 1, 1, 2);
-
-    coreSettingsMainLayout->addLayout(coreSettingsLayout);
+    oscillatingZoomStrengthLabel = new QLabel("Oscillating Strength:");
+    coreLayout->addWidget(oscillatingZoomStrengthLabel, row, 0);
+    oscillatingZoomStrengthSlider = new QSlider(Qt::Horizontal);
+    coreLayout->addWidget(oscillatingZoomStrengthSlider, row, 1);
+    oscillatingZoomStrengthSpinBox = new QDoubleSpinBox();
+    oscillatingZoomStrengthSpinBox->setFixedWidth(80);
+    coreLayout->addWidget(oscillatingZoomStrengthSpinBox, row, 2);
+    oscillatingZoomStrengthSlider->setRange(0, 50); oscillatingZoomStrengthSpinBox->setRange(0.0, 0.5);
+    oscillatingZoomStrengthSpinBox->setSingleStep(0.01); oscillatingZoomStrengthSpinBox->setDecimals(2);
+    m_controlsToManage.append(oscillatingZoomStrengthLabel);
+    m_controlsToManage.append(oscillatingZoomStrengthSlider);
+    m_controlsToManage.append(oscillatingZoomStrengthSpinBox);
+    row++;
+    
+    oscillatingZoomSpeedLabel = new QLabel("Oscillating Speed:");
+    coreLayout->addWidget(oscillatingZoomSpeedLabel, row, 0);
+    oscillatingZoomSpeedSlider = new QSlider(Qt::Horizontal);
+    coreLayout->addWidget(oscillatingZoomSpeedSlider, row, 1);
+    oscillatingZoomSpeedSpinBox = new QDoubleSpinBox();
+    oscillatingZoomSpeedSpinBox->setFixedWidth(80);
+    coreLayout->addWidget(oscillatingZoomSpeedSpinBox, row, 2);
+    oscillatingZoomSpeedSlider->setRange(0, 500); oscillatingZoomSpeedSpinBox->setRange(0.0, 5.0);
+    oscillatingZoomSpeedSpinBox->setSingleStep(0.01); oscillatingZoomSpeedSpinBox->setDecimals(2);
+    m_controlsToManage.append(oscillatingZoomSpeedLabel);
+    m_controlsToManage.append(oscillatingZoomSpeedSlider);
+    m_controlsToManage.append(oscillatingZoomSpeedSpinBox);
+    row++;
+    
+    oscillatingZoomMidpointLabel = new QLabel("Zoom Midpoint:");
+    coreLayout->addWidget(oscillatingZoomMidpointLabel, row, 0);
+    oscillatingZoomMidpointSlider = new QSlider(Qt::Horizontal);
+    coreLayout->addWidget(oscillatingZoomMidpointSlider, row, 1);
+    oscillatingZoomMidpointSpinBox = new QDoubleSpinBox();
+    oscillatingZoomMidpointSpinBox->setFixedWidth(80);
+    coreLayout->addWidget(oscillatingZoomMidpointSpinBox, row, 2);
+    oscillatingZoomMidpointSlider->setRange(50, 150); 
+    oscillatingZoomMidpointSpinBox->setRange(0.5, 1.5);
+    oscillatingZoomMidpointSpinBox->setSingleStep(0.01); 
+    oscillatingZoomMidpointSpinBox->setDecimals(2);
+    m_controlsToManage.append(oscillatingZoomMidpointLabel);
+    m_controlsToManage.append(oscillatingZoomMidpointSlider);
+    m_controlsToManage.append(oscillatingZoomMidpointSpinBox);
+    row++;
+    
     mainLayout->addWidget(coreSettingsGroup);
 
-
-    // --- Action Buttons ---
-    QHBoxLayout *actionButtonsLayout = new QHBoxLayout();
-    actionButtonsLayout->setSpacing(10);
-    actionButtonsLayout->setContentsMargins(0, 5, 0, 5);
-
+    auto actionLayout = new QHBoxLayout();
     advancedButton = new QPushButton("Advanced Settings");
-    advancedButton->setToolTip("Configure fractal types, starfield patterns, and more detailed options.");
-    actionButtonsLayout->addWidget(advancedButton);
-
+    actionLayout->addWidget(advancedButton);
+    actionLayout->addStretch();
+    cancelButton = new QPushButton("Cancel");
+    cancelButton->setVisible(false);
+    actionLayout->addWidget(cancelButton);
     generateButton = new QPushButton("Launch");
-    generateButton->setToolTip("Generate the psychedelic GIF with current settings.");
     generateButton->setObjectName("generateButton");
-    actionButtonsLayout->addWidget(generateButton);
+    actionLayout->addWidget(generateButton);
+    mainLayout->addLayout(actionLayout);
+    m_controlsToManage.append(advancedButton);
+    m_controlsToManage.append(generateButton);
 
-    mainLayout->addLayout(actionButtonsLayout);
-
-
-    // --- Progress Bar and Status ---
     progressBar = new QProgressBar();
-    progressBar->setRange(0, 100);
-    progressBar->setValue(0);
-    progressBar->setTextVisible(true);
-    progressBar->setFormat("Ready to Launch...");
-    progressBar->setToolTip("Shows the progress of GIF generation.");
     mainLayout->addWidget(progressBar);
-
-    // QStatusBar provides built-in message display
     setStatusBar(new QStatusBar(this));
-    statusBar()->showMessage("Welcome, Commander! Stand by for hyperspace jump.", 5000);
-
-    // Make central widget expandable
-    mainLayout->addStretch(1);
 }
 
-// --- setupConnections Method ---
 void MainWindow::setupConnections() {
-    // Input
     connect(browseButton, &QPushButton::clicked, this, &MainWindow::browseImage);
-
-    // Core Sliders
-    connect(numFramesSlider, &QSlider::valueChanged, this, [this](int value){
-        currentSettings.num_frames = value;
-        updateSliderValueLabel(value, numFramesValueLabel);
-    });
-    connect(scaleDecaySlider, &QSlider::valueChanged, this, [this](int value){
-        currentSettings.scale_decay = static_cast<double>(value) / 100.0;
-        updateSliderValueLabel(value, scaleDecayValueLabel, 100.0, 2);
-    });
-    connect(rotationSpeedSlider, &QSlider::valueChanged, this, [this](int value){
-        currentSettings.rotation_speed = value;
-        updateSliderValueLabel(value, rotationSpeedValueLabel);
-    });
-    connect(hueSpeedSlider, &QSlider::valueChanged, this, [this](int value){
-        currentSettings.hue_speed = static_cast<double>(value) / 10.0;
-        updateSliderValueLabel(value, hueSpeedValueLabel, 10.0, 1);
-    });
-
-    connect(rotationDirectionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::onRotationDirectionChanged);
-
-    // Action Buttons
     connect(advancedButton, &QPushButton::clicked, this, &MainWindow::openAdvancedSettings);
     connect(generateButton, &QPushButton::clicked, this, &MainWindow::startGifGeneration);
+    
+    connect(rotationDirectionCombo, &QComboBox::currentTextChanged, this, [this](const QString& text){ currentSettings.rotation_direction = text.toStdString(); });
+    connect(zoomModeComboBox, &QComboBox::currentTextChanged, this, &MainWindow::on_zoomModeComboBox_currentIndexChanged);
 
-    // --- OLD: REMOVE THIS connect statement that used MainWindow::generationProgress ---
-    // connect(this, &MainWindow::generationProgress, this,
-    //         [this](int percentage, const QString& message) {
-    //             progressBar->setValue(percentage);
-    //             progressBar->setFormat(message + " %p%");
-    //             statusBar()->showMessage(message);
-    //         });
-
-
-    // --- NEW: Connect zoom mode combo box ---
-    connect(zoomModeComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &MainWindow::on_zoomModeComboBox_currentIndexChanged);
-
-    // --- NEW: Connect oscillating zoom spin boxes to update settings ---
-    connect(oscillatingZoomAmplitudeSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-            this, [this](double value){
-                currentSettings.oscillating_zoom_amplitude = value;
-            });
-    connect(oscillatingZoomFrequencySpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-            this, [this](double value){
-                currentSettings.oscillating_zoom_frequency = value;
-            });
+    connect(numFramesSlider, &QSlider::valueChanged, numFramesSpinBox, &QSpinBox::setValue);
+    connect(numFramesSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), numFramesSlider, &QSlider::setValue);
+    connect(numFramesSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int val){ currentSettings.num_frames = val; });
+    
+    auto connectDoubleSlider = [this](QSlider* slider, QDoubleSpinBox* spinBox, double& setting, double factor = 100.0){
+        connect(slider, &QSlider::valueChanged, this, [=, &setting](int val){
+            double newVal = val / factor;
+            spinBox->blockSignals(true);
+            spinBox->setValue(newVal);
+            spinBox->blockSignals(false);
+            setting = newVal;
+        });
+        connect(spinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [=, &setting](double val){
+            slider->blockSignals(true);
+            slider->setValue(static_cast<int>(val * factor));
+            slider->blockSignals(false);
+            setting = val;
+        });
+    };
+    
+    connectDoubleSlider(scaleDecaySlider, scaleDecaySpinBox, currentSettings.scale_decay);
+    connectDoubleSlider(rotationSpeedSlider, rotationSpeedSpinBox, currentSettings.rotation_speed, 10.0);
+    connectDoubleSlider(hueSpeedSlider, hueSpeedSpinBox, currentSettings.hue_speed, 10.0);
+    connectDoubleSlider(hueIntensitySlider, hueIntensitySpinBox, currentSettings.hue_intensity);
+    connectDoubleSlider(linearZoomStrengthSlider, linearZoomStrengthSpinBox, currentSettings.linear_zoom_speed);
+    connectDoubleSlider(oscillatingZoomStrengthSlider, oscillatingZoomStrengthSpinBox, currentSettings.oscillating_zoom_amplitude);
+    connectDoubleSlider(oscillatingZoomSpeedSlider, oscillatingZoomSpeedSpinBox, currentSettings.oscillating_zoom_frequency);
+    connectDoubleSlider(oscillatingZoomMidpointSlider, oscillatingZoomMidpointSpinBox, currentSettings.oscillating_zoom_midpoint);
 }
 
-// --- setupQtConcurrent (Removed as per previous instructions) ---
-// This function definition is no longer needed in mainwindow.cpp.
-// It was removed from mainwindow.h as well.
-
-// --- setUiEnabled Method ---
-void MainWindow::setUiEnabled(bool enabled) {
-    imagePathEdit->setEnabled(enabled);
-    browseButton->setEnabled(enabled);
-    numFramesSlider->setEnabled(enabled);
-    numFramesValueLabel->setEnabled(enabled);
-    scaleDecaySlider->setEnabled(enabled);
-    scaleDecayValueLabel->setEnabled(enabled);
-    rotationSpeedSlider->setEnabled(enabled);
-    rotationSpeedValueLabel->setEnabled(enabled);
-    hueSpeedSlider->setEnabled(enabled);
-    hueSpeedValueLabel->setEnabled(enabled);
-    rotationDirectionCombo->setEnabled(enabled);
-    advancedButton->setEnabled(enabled);
-    generateButton->setEnabled(enabled);
-
-    // --- NEW: Enable/disable zoom controls too ---
-    zoomModeComboBox->setEnabled(enabled);
-    oscillatingZoomAmplitudeLabel->setEnabled(enabled);
-    oscillatingZoomAmplitudeSpinBox->setEnabled(enabled);
-    oscillatingZoomFrequencyLabel->setEnabled(enabled);
-    oscillatingZoomFrequencySpinBox->setEnabled(enabled);
-}
-
-// --- browseImage Slot ---
 void MainWindow::browseImage() {
-    QString filePath = QFileDialog::getOpenFileName(this,
-                                                    "Select Cosmic Artifact",
-                                                    QDir::homePath(),
-                                                    "Image Files (*.png *.jpg *.jpeg *.gif *.bmp)");
-    if (!filePath.isEmpty()) {
-        imagePathEdit->setText(filePath);
-        currentSettings.image_path = filePath.toStdString();
-
-        // --- Image Preview ---
-        try {
-            cv::Mat img = cv::imread(filePath.toStdString(), cv::IMREAD_UNCHANGED);
-            if (img.empty()) {
-                imagePreviewLabel->setText("Error: Could not load image preview.");
-                return;
-            }
-
-            if (img.channels() < 4) {
-                 cv::cvtColor(img, img, cv::COLOR_BGR2BGRA);
-            }
-            cv::cvtColor(img, img, cv::COLOR_BGRA2RGBA);
-
-            QSize labelSize = imagePreviewLabel->size();
-            QImage qImage(img.data, img.cols, img.rows, img.step, QImage::Format_RGBA8888);
-            QPixmap pixmap = QPixmap::fromImage(qImage);
-            pixmap = pixmap.scaled(labelSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-
-            imagePreviewLabel->setPixmap(pixmap);
-            imagePreviewLabel->setText("");
-            imagePreviewLabel->setAlignment(Qt::AlignCenter);
-            imagePreviewLabel->setStyleSheet("background-color: #1A1A2E; border: none;");
-
-        } catch (const cv::Exception& e) {
-            imagePreviewLabel->setText(QString("Error loading image: %1").arg(e.what()));
-            imagePreviewLabel->setStyleSheet("background-color: #1A1A2E; color: #E74C3C; border: 2px dashed #E74C3C; border-radius: 10px;");
-        } catch (const std::exception& e) {
-            imagePreviewLabel->setText(QString("Error: %1").arg(e.what()));
-            imagePreviewLabel->setStyleSheet("background-color: #1A1A2E; color: #E74C3C; border: 2px dashed #E74C3C; border-radius: 10px;");
-        }
-    }
+    QString filePath = QFileDialog::getOpenFileName(this, "Select Image", QDir::homePath(), "Image Files (*.png *.jpg *.jpeg *.bmp)");
+    if (filePath.isEmpty()) return;
+    
+    imagePathEdit->setText(filePath);
+    currentSettings.image_path = filePath.toStdString();
+    
+    QPixmap pixmap(filePath);
+    imagePreviewLabel->setPixmap(pixmap.scaled(imagePreviewLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }
 
-// --- updateSliderValueLabel Method ---
-void MainWindow::updateSliderValueLabel(int value, QLabel* label, double factor, int precision) {
-    label->setText(QString("(%1)").arg(static_cast<double>(value) / factor, 0, 'f', precision));
-}
-
-// --- onRotationDirectionChanged Slot ---
-void MainWindow::onRotationDirectionChanged(int index) {
-    currentSettings.rotation_direction = rotationDirectionCombo->itemText(index).toStdString();
-}
-
-// --- openAdvancedSettings Slot ---
+// --- THIS FUNCTION WAS MISSING ---
 void MainWindow::openAdvancedSettings() {
     AdvancedSettingsDialog advDialog(&currentSettings, this);
     connect(&advDialog, &AdvancedSettingsDialog::settingsChanged, this, &MainWindow::refreshCoreSettingsUi);
     advDialog.exec();
 }
 
-// --- startGifGeneration Slot (NEW THREADING MODEL) ---
 void MainWindow::startGifGeneration() {
-    if (currentSettings.image_path.empty()) {
-        QMessageBox::warning(this, "Input Required", "Please select an input image first.");
-        return;
-    }
+    if (workerThread) { return; }
+    if (currentSettings.image_path.empty()) { QMessageBox::warning(this, "Input Required", "Please select an input image first."); return; }
+    QString outputFilePath = QFileDialog::getSaveFileName(this, "Save Generated GIF", QDir::homePath() + "/output.gif", "GIF Files (*.gif)");
+    if (outputFilePath.isEmpty()) return;
 
-    QString outputFilePath = QFileDialog::getSaveFileName(this,
-                                                          "Save Generated GIF",
-                                                          QDir::homePath() + "/output.gif",
-                                                          "GIF Files (*.gif)");
-    if (outputFilePath.isEmpty()) {
-        return; // User cancelled
-    }
-
-    setUiEnabled(false); // Disable UI during generation
+    for (QWidget* w : m_controlsToManage) { w->setEnabled(false); }
+    cancelButton->setVisible(true);
     statusBar()->showMessage("Launching Hyperspace...", 0);
     progressBar->setValue(0);
-    progressBar->setFormat("Initializing...");
-
-    // Update currentSettings from UI just before starting the thread
-    currentSettings.image_path = imagePathEdit->text().toStdString();
-    currentSettings.num_frames = numFramesSlider->value();
-    currentSettings.max_scale = static_cast<double>(scaleDecaySlider->value()) / 100.0;
-    currentSettings.scale_decay = static_cast<double>(scaleDecaySlider->value()) / 100.0;
-    currentSettings.rotation_speed = rotationSpeedSlider->value();
-    currentSettings.hue_speed = static_cast<double>(hueSpeedSlider->value()) / 10.0;
-    currentSettings.rotation_direction = rotationDirectionCombo->currentText().toStdString();
-    currentSettings.global_zoom_mode = zoomModeComboBox->currentText().toStdString();
-    currentSettings.oscillating_zoom_amplitude = oscillatingZoomAmplitudeSpinBox->value();
-    currentSettings.oscillating_zoom_frequency = oscillatingZoomFrequencySpinBox->value();
-
-    // Create worker object and move it to the thread
+    workerThread = new QThread(this);
     worker = new GifWorker(currentSettings, outputFilePath.toStdString());
     worker->moveToThread(workerThread);
-
-    // Connect signals and slots
+    connect(worker, &GifWorker::finished, workerThread, &QThread::quit);
+    connect(workerThread, &QThread::finished, this, [this](){ worker->deleteLater(); workerThread->deleteLater(); worker = nullptr; workerThread = nullptr; });
     connect(workerThread, &QThread::started, worker, &GifWorker::process);
     connect(worker, &GifWorker::progressUpdated, this, &MainWindow::handleGenerationProgress);
     connect(worker, &GifWorker::finished, this, &MainWindow::handleGenerationFinished);
-
-    // Clean up worker object and thread when finished
-    connect(workerThread, &QThread::finished, worker, &QObject::deleteLater); // Worker deleted when thread finishes
-    connect(workerThread, &QThread::finished, workerThread, &QObject::deleteLater); // Thread deleted after worker
-
-    // Start the thread, which will in turn call worker->process()
+    connect(cancelButton, &QPushButton::clicked, worker, &GifWorker::cancel, Qt::DirectConnection);
     workerThread->start();
 }
 
-// --- handleGenerationProgress Slot ---
 void MainWindow::handleGenerationProgress(int percentage, const QString& message) {
     progressBar->setValue(percentage);
-    progressBar->setFormat(message + " %p%");
-    statusBar()->showMessage(message);
+    progressBar->setFormat(message + " (%p%)");
 }
 
-// --- handleGenerationFinished Slot ---
-void MainWindow::handleGenerationFinished(const QString& result_message) {
-    setUiEnabled(true); // Re-enable UI
-
-    if (result_message.startsWith("Error:")) {
-        QMessageBox::critical(this, "Generation Failed", result_message);
-        statusBar()->showMessage("Generation Failed!");
-        progressBar->setValue(0);
-        progressBar->setFormat("Failed!");
+void MainWindow::handleGenerationFinished(bool success, const QString& pathOrMessage) {
+    for (QWidget* w : m_controlsToManage) { w->setEnabled(true); }
+    cancelButton->setVisible(false);
+    if (!success) {
+        if (pathOrMessage == "GIF generation cancelled.") {
+            statusBar()->showMessage(pathOrMessage, 5000);
+        } else {
+            QMessageBox::critical(this, "Generation Failed", pathOrMessage);
+            statusBar()->showMessage("Generation Failed!");
+        }
     } else {
         statusBar()->showMessage("GIF Saved Successfully!", 5000);
-        progressBar->setValue(100);
-        progressBar->setFormat("Complete!");
-        QMessageBox::information(this, "Frames Generated", result_message);
+        QMessageBox successMsgBox(this);
+        successMsgBox.setIcon(QMessageBox::Information);
+        successMsgBox.setText("GIF generation complete.");
+        successMsgBox.setInformativeText(QString("Saved to:\n%1").arg(pathOrMessage));
+        QPushButton *showButton = successMsgBox.addButton("Show in Folder", QMessageBox::ActionRole);
+        successMsgBox.addButton(QMessageBox::Ok);
+        successMsgBox.exec();
+        if (successMsgBox.clickedButton() == showButton) {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(pathOrMessage).absolutePath()));
+        }
     }
-    
-    // Clear pointers as objects will be deleted by deleteLater
-    worker = nullptr;
-    workerThread = nullptr;
 }
 
-// --- refreshCoreSettingsUi Slot ---
 void MainWindow::refreshCoreSettingsUi() {
-    qDebug() << "MainWindow::refreshCoreSettingsUi() called.";
+    for (QWidget* w : m_controlsToManage) { w->blockSignals(true); }
 
-    // Block signals to prevent immediate re-triggering of slots during refresh
-    numFramesSlider->blockSignals(true);
-    scaleDecaySlider->blockSignals(true);
-    rotationSpeedSlider->blockSignals(true);
-    hueSpeedSlider->blockSignals(true);
-    rotationDirectionCombo->blockSignals(true);
-    zoomModeComboBox->blockSignals(true);
-    oscillatingZoomAmplitudeSpinBox->blockSignals(true);
-    oscillatingZoomFrequencySpinBox->blockSignals(true);
-
-
-    // Update UI elements based on currentSettings
     numFramesSlider->setValue(currentSettings.num_frames);
-    updateSliderValueLabel(currentSettings.num_frames, numFramesValueLabel);
-
+    numFramesSpinBox->setValue(currentSettings.num_frames);
     scaleDecaySlider->setValue(static_cast<int>(currentSettings.scale_decay * 100));
-    updateSliderValueLabel(static_cast<int>(currentSettings.scale_decay * 100), scaleDecayValueLabel, 100.0, 2);
-
-    rotationSpeedSlider->setValue(currentSettings.rotation_speed);
-    updateSliderValueLabel(currentSettings.rotation_speed, rotationSpeedValueLabel);
-
+    scaleDecaySpinBox->setValue(currentSettings.scale_decay);
+    rotationSpeedSlider->setValue(static_cast<int>(currentSettings.rotation_speed * 10));
+    rotationSpeedSpinBox->setValue(currentSettings.rotation_speed);
     hueSpeedSlider->setValue(static_cast<int>(currentSettings.hue_speed * 10));
-    updateSliderValueLabel(static_cast<int>(currentSettings.hue_speed * 10), hueSpeedValueLabel, 10.0, 1);
+    hueSpeedSpinBox->setValue(currentSettings.hue_speed);
+    hueIntensitySlider->setValue(static_cast<int>(currentSettings.hue_intensity * 100));
+    hueIntensitySpinBox->setValue(currentSettings.hue_intensity);
+    rotationDirectionCombo->setCurrentText(QString::fromStdString(currentSettings.rotation_direction));
+    zoomModeComboBox->setCurrentText(QString::fromStdString(currentSettings.global_zoom_mode));
+    linearZoomStrengthSlider->setValue(static_cast<int>(currentSettings.linear_zoom_speed * 100));
+    linearZoomStrengthSpinBox->setValue(currentSettings.linear_zoom_speed);
+    oscillatingZoomStrengthSlider->setValue(static_cast<int>(currentSettings.oscillating_zoom_amplitude * 100));
+    oscillatingZoomStrengthSpinBox->setValue(currentSettings.oscillating_zoom_amplitude);
+    oscillatingZoomSpeedSlider->setValue(static_cast<int>(currentSettings.oscillating_zoom_frequency * 100));
+    oscillatingZoomSpeedSpinBox->setValue(currentSettings.oscillating_zoom_frequency);
+    oscillatingZoomMidpointSlider->setValue(static_cast<int>(currentSettings.oscillating_zoom_midpoint * 100));
+    oscillatingZoomMidpointSpinBox->setValue(currentSettings.oscillating_zoom_midpoint);
 
-    int rotationIndex = rotationDirectionCombo->findText(QString::fromStdString(currentSettings.rotation_direction));
-    if (rotationIndex != -1) {
-        rotationDirectionCombo->setCurrentIndex(rotationIndex);
-    }
-
-    int zoomModeIndex = zoomModeComboBox->findText(QString::fromStdString(currentSettings.global_zoom_mode));
-    if (zoomModeIndex != -1) {
-        zoomModeComboBox->setCurrentIndex(zoomModeIndex);
-    }
-    oscillatingZoomAmplitudeSpinBox->setValue(currentSettings.oscillating_zoom_amplitude);
-    oscillatingZoomFrequencySpinBox->setValue(currentSettings.oscillating_zoom_frequency);
-
-
-    // Unblock signals
-    numFramesSlider->blockSignals(false);
-    scaleDecaySlider->blockSignals(false);
-    rotationSpeedSlider->blockSignals(false);
-    hueSpeedSlider->blockSignals(false);
-    rotationDirectionCombo->blockSignals(false);
-    zoomModeComboBox->blockSignals(false);
-    oscillatingZoomAmplitudeSpinBox->blockSignals(false);
-    oscillatingZoomFrequencySpinBox->blockSignals(false);
-
-    updateZoomControlVisibility();
-    statusBar()->showMessage("Core settings refreshed.", 2000);
-}
-
-// --- Slot for Zoom Mode ComboBox change ---
-void MainWindow::on_zoomModeComboBox_currentIndexChanged(int index)
-{
-    Q_UNUSED(index);
+    for (QWidget* w : m_controlsToManage) { w->blockSignals(false); }
     updateZoomControlVisibility();
 }
 
-// --- Helper function to manage visibility based on selected zoom mode ---
+void MainWindow::on_zoomModeComboBox_currentIndexChanged(const QString& text) {
+    currentSettings.global_zoom_mode = text.toStdString();
+    updateZoomControlVisibility();
+}
+
 void MainWindow::updateZoomControlVisibility() {
-    QString selectedMode = zoomModeComboBox->currentText();
-    bool isOscillating = (selectedMode == "Oscillating");
-
-    oscillatingZoomAmplitudeLabel->setVisible(isOscillating);
-    oscillatingZoomAmplitudeSpinBox->setVisible(isOscillating);
-    oscillatingZoomFrequencyLabel->setVisible(isOscillating);
-    oscillatingZoomFrequencySpinBox->setVisible(isOscillating);
+    bool isLinear = (currentSettings.global_zoom_mode == "Linear");
+    bool isOscillating = (currentSettings.global_zoom_mode == "Oscillating");
+    linearZoomStrengthLabel->setVisible(isLinear);
+    linearZoomStrengthSlider->setVisible(isLinear);
+    linearZoomStrengthSpinBox->setVisible(isLinear);
+    oscillatingZoomStrengthLabel->setVisible(isOscillating);
+    oscillatingZoomStrengthSlider->setVisible(isOscillating);
+    oscillatingZoomStrengthSpinBox->setVisible(isOscillating);
+    oscillatingZoomSpeedLabel->setVisible(isOscillating);
+    oscillatingZoomSpeedSlider->setVisible(isOscillating);
+    oscillatingZoomSpeedSpinBox->setVisible(isOscillating);
+    oscillatingZoomMidpointLabel->setVisible(isOscillating);
+    oscillatingZoomMidpointSlider->setVisible(isOscillating);
+    oscillatingZoomMidpointSpinBox->setVisible(isOscillating);
 }
