@@ -1,0 +1,86 @@
+Updated Action Plan: Psychedelic GIF Creator
+Status as of: June 21, 2025
+
+This document outlines the development status of the application, reflecting all completed work, ongoing tasks, and future goals.
+
+Phase 1: Foundation & Theming
+Status: ✅ COMPLETED
+
+This phase established the application's core structure and visual identity.
+
+GUI Framework: Successfully built the application using the C++ Qt framework with a CMake build system.
+
+Centralized Settings: Implemented a GifSettings struct to manage all effect parameters in one place.
+
+Robust Threading: Replaced the initial threading model with a stable QThread and GifWorker architecture, eliminating UI freezes and ensuring safe background processing.
+
+Global Stylesheet: Consolidated all UI styling into a single, global Qt Style Sheet (QSS) in main.cpp. This makes theme management simple and consistent.
+
+Theme Restoration: After initial exploration, the UI theme was successfully reverted to the preferred dark blue/purple aesthetic (#1A1A2E) with a vibrant teal accent (#64FFDA).
+
+Phase 2: Core Functionality & Effect Implementation
+Status: ✅ COMPLETED
+
+This phase focused on implementing and correcting the core psychedelic effects.
+
+Recursive "Tunnel" Effect: After identifying a major algorithmic regression by analyzing the original Python prototype, the image processing logic was completely rewritten. The correct "Recursive Feedback Loop" algorithm is now implemented, fixing the "Layers" and "Warp" functionalities, which now correctly control the fractal depth and speed.
+
+Perfect Rotation Loop: The rotation logic was fixed to ensure the total rotation over the GIF's duration is a multiple of 360 degrees, resulting in a seamless loop.
+
+Advanced Zoom Modes: The UI and processing logic for selecting "Linear" or "Oscillating" zoom modes were successfully implemented.
+
+Direct GIF Encoding: Integrated the gif.h library to encode and save .gif files directly.
+
+Phase 3: UI/UX Refinement & Polish
+Status: 🟡 IN PROGRESS
+
+This phase focuses on improving the user's interaction with the application.
+
+Completed:
+
+Two-Way Control Binding: All sliders in both the Core and Advanced settings have been paired with editable QSpinBox or QDoubleSpinBox widgets, giving the user both tactile and precise numerical control.
+
+Enhanced Success Dialog: The pop-up after a GIF is created now includes a "Show in Folder" button for immediate access to the output file.
+
+Visual Consistency Fixes: Corrected UI issues where labels had the wrong background color and spin box buttons did not match the application's theme.
+
+Tooltips Restored: Informative tooltips for all sliders have been re-implemented.
+
+Layout Bug Fixed: Corrected a major bug where the "Core Settings" panel would disappear when changing the zoom mode.
+
+Next Steps (Pending):
+
+Spin Box Icons: Implement custom + and - icons for the spin box buttons to ensure a clear and reliable look across all systems. This is the next planned task.
+
+Phase 4: Stability & Bug Fixes
+Status: ✅ COMPLETED
+
+This phase addressed numerous critical runtime errors, resulting in a stable application.
+
+Memory Corruption Resolved: Fixed several complex memory management bugs in gif_worker.cpp that were causing munmap_chunk(), free(): invalid size, and other "dangling pointer" errors during GIF generation.
+
+Threading Crashes Resolved: Corrected the QThread lifecycle management to fix the Segmentation fault that occurred when starting a second GIF generation.
+
+Compilation Errors: Resolved all compilation errors that arose from desynchronized header and source files during the development process.
+
+Phase 5: Future Enhancements
+Status: ⚫ PENDING
+
+This phase outlines potential new features to expand the application's capabilities.
+
+Save/Load User Presets: Implement functionality to save and load different combinations of settings.
+
+Real-Time Preview: Investigate adding a small, low-resolution, real-time preview of the effect within the GUI.
+
+Expand Effect Library: Add more advanced effects, such as new fractal types or starfield patterns.
+
+GIF Frame Rate Control: Add a UI control to adjust the delay between frames, controlling the GIF's playback speed.
+
+Phase 6: Deployment
+Status: ⚫ PENDING
+
+This phase focuses on packaging the application for distribution.
+
+Cross-Platform Testing: Test compilation and functionality on other operating systems (e.g., Windows).
+
+Create Installers: Use platform-specific tools (like windeployqt for Windows or creating an AppImage for Linux) to create distributable packages.
