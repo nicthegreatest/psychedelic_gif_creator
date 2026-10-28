@@ -46,10 +46,14 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(gif_creator_gui PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-# --- Install (e.g. cmake --install build --prefix ~/.local) -----------------
+# --- Install ----------------------------------------------------------------
+# Configure with -DCMAKE_INSTALL_PREFIX=$HOME/.local so the .desktop Exec path
+# points at the installed binary, then: cmake --install build
 include(GNUInstallDirs)
 install(TARGETS gif_creator_gui RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES resources/psychedelic-gif-creator.desktop
+configure_file(resources/psychedelic-gif-creator.desktop.in
+               ${CMAKE_CURRENT_BINARY_DIR}/psychedelic-gif-creator.desktop @ONLY)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/psychedelic-gif-creator.desktop
         DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES resources/psychedelic-gif-creator.svg
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
