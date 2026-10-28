@@ -205,6 +205,15 @@ int main(int argc, char** argv) {
         CHECK(res == GifWorker::Result::Success && f.open(QIODevice::ReadOnly) && f.read(6) == "GIF89a", "export");
         CHECK(lastProgress == 100, "progress reached %d", lastProgress);
 
+        // Output must not depend on the thread count.
+        const QString out1 = QDir(tmp.path()).filePath("out1.gif");
+        GifWorker one(s, out1.toStdString());
+        one.setThreadCount(1);
+        one.process();
+        QFile f1(out1);
+        f.seek(0);
+        CHECK(f1.open(QIODevice::ReadOnly) && f1.readAll() == f.readAll(), "1-thread and 3-thread exports differ");
+
         const QString out2 = QDir(tmp.path()).filePath("cancelled.gif");
         GifWorker c(s, out2.toStdString());
         QObject::connect(&c, &GifWorker::finished, [&](GifWorker::Result r, const QString&) { res = r; });

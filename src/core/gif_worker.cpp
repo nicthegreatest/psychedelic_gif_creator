@@ -19,7 +19,8 @@
 namespace {
 struct FrameResult {
     cv::Mat rgba;       // rendered frame, RGBA as gif-h expects
-    GifPalette palette; // built from the whole frame on the worker thread
+    GifPalette palette{}; // built from the whole frame on the worker thread; zeroed
+                          // because gif-h leaves entries for empty subtrees unset
     std::string error;
 };
 
