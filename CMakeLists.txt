@@ -51,17 +51,18 @@ target_compile_options(gifcore PRIVATE ${GIF_WARNINGS})
 
 qt_add_executable(gif_creator_gui
     src/main.cpp
-    src/mainwindow.cpp src/mainwindow.h
-    src/advancedsettingsdialog.cpp src/advancedsettingsdialog.h
-    src/gif_worker.cpp src/gif_worker.h
-    src/gif_settings.h
+    src/ui/mainwindow.cpp src/ui/mainwindow.h
+    src/ui/advancedsettingsdialog.cpp src/ui/advancedsettingsdialog.h
+    src/ui/settings_form.cpp src/ui/settings_form.h
 )
-
-target_link_libraries(gif_creator_gui PRIVATE
-    Qt6::Widgets
-    opencv_core opencv_imgproc opencv_imgcodecs
-    gif_h)
-target_include_directories(gif_creator_gui SYSTEM PRIVATE ${OpenCV_INCLUDE_DIRS})
+qt_add_resources(gif_creator_gui app_resources
+    PREFIX /
+    BASE resources
+    FILES resources/style.qss resources/psychedelic-gif-creator.png
+)
+target_include_directories(gif_creator_gui PRIVATE src/ui)
+target_compile_definitions(gif_creator_gui PRIVATE PGC_VERSION="${PROJECT_VERSION}")
+target_link_libraries(gif_creator_gui PRIVATE gifcore Qt6::Widgets Qt6::Concurrent)
 
 target_compile_options(gif_creator_gui PRIVATE ${GIF_WARNINGS})
 
@@ -91,3 +92,5 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/psychedelic-gif-creator.desktop
         DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES resources/psychedelic-gif-creator.svg
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+install(FILES resources/psychedelic-gif-creator.png
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps)
