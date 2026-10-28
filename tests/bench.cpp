@@ -1,5 +1,5 @@
 // bench.cpp - headless export benchmark.
-// usage: gif_bench <image> <out.gif> [kaleidoscope: none|radial6] [threads]
+// usage: gif_bench <image> <out.gif> [none|radial6] [threads] [WxH] [fit|fill] [dither]
 #include "frame_renderer.h"
 #include "gif_worker.h"
 #include "image_loader.h"
@@ -7,17 +7,31 @@
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     if (argc < 3) {
-        std::fprintf(stderr, "usage: %s <image> <out.gif> [none|radial6] [threads]\n", argv[0]);
+        std::fprintf(stderr, "usage: %s <image> <out.gif> [none|radial6] [threads] [WxH] [fit|fill] [dither]\n", argv[0]);
         return 2;
     }
     GifSettings s;
     s.image_path = argv[1];
     if (argc > 3 && std::strcmp(argv[3], "radial6") == 0) s.kaleidoscope_mode = KaleidoscopeMode::Radial6;
+    for (int a = 5; a < argc; ++a) {
+        int w = 0, h = 0;
+        if (std::sscanf(argv[a], "%dx%d", &w, &h) == 2) {
+            s.output_width = w;
+            s.output_height = h;
+        } else if (std::strcmp(argv[a], "fit") == 0) {
+            s.fit_mode = FitMode::Fit;
+        } else if (std::strcmp(argv[a], "fill") == 0) {
+            s.fit_mode = FitMode::Fill;
+        } else if (std::strcmp(argv[a], "dither") == 0) {
+            s.dither = true;
+        }
+    }
     {
         // Render-only timing (single thread), to separate rendering from encoding.
         const cv::Mat src = loadImageBGRA(s.image_path);
