@@ -18,7 +18,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 6.2 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Concurrent Widgets)
 # Only the modules the app actually uses. Linking ${OpenCV_LIBS} (all modules)
 # pulled in highgui/cvv, which on Fedora drag a second Qt into the process.
 find_package(OpenCV 4 REQUIRED COMPONENTS core imgproc imgcodecs)
@@ -27,6 +27,27 @@ qt_standard_project_setup()
 
 add_library(gif_h INTERFACE)
 target_include_directories(gif_h SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gif-h)
+
+set(GIF_WARNINGS)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    set(GIF_WARNINGS -Wall -Wextra -Wpedantic)
+endif()
+
+# --- Core: settings, image loading, the shared renderer and the exporter ----
+# No widgets here, so it is used by the GUI, the tests and the benchmark.
+add_library(gifcore STATIC
+    src/core/gif_settings.h
+    src/core/settings_schema.cpp src/core/settings_schema.h
+    src/core/image_loader.cpp src/core/image_loader.h
+    src/core/frame_renderer.cpp src/core/frame_renderer.h
+    src/core/gif_worker.cpp src/core/gif_worker.h
+)
+target_include_directories(gifcore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/core)
+target_include_directories(gifcore SYSTEM PUBLIC ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(gifcore
+    PUBLIC Qt6::Core Qt6::Gui opencv_core opencv_imgproc opencv_imgcodecs
+    PRIVATE Qt6::Concurrent gif_h)
+target_compile_options(gifcore PRIVATE ${GIF_WARNINGS})
 
 qt_add_executable(gif_creator_gui
     src/main.cpp
@@ -42,8 +63,21 @@ target_link_libraries(gif_creator_gui PRIVATE
     gif_h)
 target_include_directories(gif_creator_gui SYSTEM PRIVATE ${OpenCV_INCLUDE_DIRS})
 
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(gif_creator_gui PRIVATE -Wall -Wextra -Wpedantic)
+target_compile_options(gif_creator_gui PRIVATE ${GIF_WARNINGS})
+
+# --- Tests and benchmark ----------------------------------------------------
+include(CTest)
+if(BUILD_TESTING)
+    qt_add_executable(gif_render_tests tests/render_tests.cpp)
+    target_link_libraries(gif_render_tests PRIVATE gifcore)
+    target_compile_options(gif_render_tests PRIVATE ${GIF_WARNINGS})
+    set_target_properties(gif_render_tests PROPERTIES WIN32_EXECUTABLE OFF MACOSX_BUNDLE OFF)
+    add_test(NAME render_tests COMMAND gif_render_tests)
+    set_tests_properties(render_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 300)
+
+    qt_add_executable(gif_bench tests/bench.cpp)
+    target_link_libraries(gif_bench PRIVATE gifcore)
+    target_compile_options(gif_bench PRIVATE ${GIF_WARNINGS})
 endif()
 
 # --- Install ----------------------------------------------------------------
