@@ -2,7 +2,8 @@
 #include "gif_worker.h"
 #include "gif.h"
 #include <QDebug>
-#include <opencv2/opencv.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
 #include <cmath>
 #include <algorithm>
 #include <random>

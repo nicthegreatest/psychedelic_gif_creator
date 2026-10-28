@@ -13,7 +13,8 @@
 #include <QFileInfo>
 #include <QStyle>
 
-#include <opencv2/opencv.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846

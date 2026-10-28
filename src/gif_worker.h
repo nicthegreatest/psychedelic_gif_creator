@@ -7,7 +7,7 @@
 #include <functional>
 #include <atomic> // Required for std::atomic
 #include "gif_settings.h"
-#include <opencv2/opencv.hpp> // Add this line to include OpenCV types
+#include <opencv2/core.hpp>
 
 class GifWorker : public QObject
 {

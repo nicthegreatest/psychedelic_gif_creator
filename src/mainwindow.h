@@ -21,7 +21,7 @@
 #include <QTimer>
 
 #include "gif_settings.h"
-#include <opencv2/opencv.hpp>
+#include <opencv2/core.hpp>
 
 class GifWorker;
 class AdvancedSettingsDialog;
