@@ -63,6 +63,7 @@ private:
     GifSettings m_settings;
     std::optional<GifSettings> m_previewOverride; // advanced dialog's working copy
     SettingsForm* m_form = nullptr;
+    QPointer<class AdvancedSettingsDialog> m_advanced; // non-modal so GNOME lets it move
 
     QLineEdit* m_pathEdit = nullptr;
     QLabel* m_preview = nullptr;

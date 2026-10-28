@@ -244,18 +244,33 @@ void MainWindow::matchImageAspect() {
 }
 
 void MainWindow::openAdvanced() {
-    AdvancedSettingsDialog dialog(m_settings, this);
-    connect(&dialog, &AdvancedSettingsDialog::settingsChanged, this, [this](const GifSettings& s) {
+    if (m_advanced) {
+        m_advanced->raise();
+        m_advanced->activateWindow();
+        return;
+    }
+    // Non-modal: GNOME/Mutter glues modal dialogs to their parent, so a modal
+    // dialog can't be dragged off the live preview.
+    auto* dialog = new AdvancedSettingsDialog(m_settings, this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setWindowModality(Qt::NonModal);
+    m_advanced = dialog;
+    connect(dialog, &AdvancedSettingsDialog::settingsChanged, this, [this](const GifSettings& s) {
         m_previewOverride = s;
         schedulePreview();
     });
-    const bool accepted = dialog.exec() == QDialog::Accepted;
-    if (accepted) {
-        m_settings = dialog.settings();
-        m_form->load();
-    }
-    m_previewOverride.reset();
-    schedulePreview(0);
+    connect(dialog, &QDialog::finished, this, [this, dialog](int result) {
+        if (result == QDialog::Accepted) {
+            m_settings = dialog->settings();
+            m_form->load();
+        }
+        m_previewOverride.reset();
+        m_form->setEnabled(true);
+        schedulePreview(0);
+    });
+    // The main settings stay locked while the dialog holds a working copy.
+    m_form->setEnabled(false);
+    dialog->show();
 }
 
 void MainWindow::resetAll() {
