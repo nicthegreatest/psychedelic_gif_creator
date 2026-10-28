@@ -19,11 +19,12 @@
 #include <QList>
 #include <QCheckBox>
 #include <QTimer>
+#include <QPointer>
 
 #include "gif_settings.h"
 #include <opencv2/core.hpp>
 
-class GifWorker;
+#include "gif_worker.h"
 class AdvancedSettingsDialog;
 
 class MainWindow : public QMainWindow {
@@ -38,7 +39,7 @@ private slots:
     void openAdvancedSettings();
     void startGifGeneration();
     void handleGenerationProgress(int percentage, const QString& message);
-    void handleGenerationFinished(bool success, const QString& pathOrMessage);
+    void handleGenerationFinished(GifWorker::Result result, const QString& pathOrMessage);
     void refreshCoreSettingsUi();
     void on_zoomModeComboBox_currentIndexChanged(const QString& text);
     void triggerPreviewUpdate();
@@ -46,8 +47,8 @@ private slots:
 
 private:
     GifSettings currentSettings;
-    GifWorker* worker = nullptr;
-    QThread* workerThread = nullptr;
+    QPointer<GifWorker> worker;
+    QPointer<QThread> workerThread;
 
     // --- GUI Widgets ---
     QCheckBox* previewCheckBox;

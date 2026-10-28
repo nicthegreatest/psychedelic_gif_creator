@@ -1,7 +1,7 @@
 // gif_worker.cpp
 #include "gif_worker.h"
 #include "gif.h"
-#include <QDebug>
+#include <QFile>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <cmath>
@@ -120,12 +120,33 @@ void GifWorker::applyKaleidoscope(cv::Mat& image, int frame_idx) {
 }
 
 void GifWorker::process() {
-    qDebug() << "Worker: Implementing 'Layered Collage' with new effects.";
+    QString message;
+    Result result = Result::Failed;
+    try {
+        result = render(message);
+    } catch (const cv::Exception& e) {
+        message = QString("Image processing error: %1").arg(QString::fromStdString(e.what()));
+    } catch (const std::exception& e) {
+        message = QString("Unexpected error: %1").arg(QString::fromStdString(e.what()));
+    } catch (...) {
+        message = "Unknown error during GIF generation.";
+    }
+
+    if (result != Result::Success && m_fileCreated) {
+        // Never leave a half-written GIF behind.
+        QFile::remove(QString::fromStdString(m_output_path));
+    } else {
+        message = QString::fromStdString(m_output_path);
+    }
+    emit finished(result, message);
+}
+
+GifWorker::Result GifWorker::render(QString& message) {
 
     cv::Mat original_image_bgr = cv::imread(m_settings.image_path, cv::IMREAD_UNCHANGED);
     if (original_image_bgr.empty()) {
-        emit finished(false, "Error: Could not load input image.");
-        return;
+        message = "Could not load input image.";
+        return Result::Failed;
     }
 
     cv::Mat original_image_rgba;
@@ -143,10 +164,11 @@ void GifWorker::process() {
 
     GifWriter writer;
     if (!GifBegin(&writer, m_output_path.c_str(), width, height, frame_delay_cs, 8, false)) {
-        emit finished(false, "Error: Failed to open GIF for writing.");
-        return;
+        message = "Failed to open GIF for writing.";
+        return Result::Failed;
     }
-    
+    m_fileCreated = true;
+
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> dist_x(0, width - 1);
@@ -164,7 +186,7 @@ void GifWorker::process() {
     double angle_per_frame = (m_settings.num_frames > 0) ? (total_rotation_degrees / m_settings.num_frames) : 0.0;
 
     for (int i = 0; i < m_settings.num_frames; ++i) {
-        if (m_isCancelled) { qDebug() << "Worker: Cancellation requested."; break; }
+        if (m_isCancelled) break;
         emitProgress((i + 1) * 100 / m_settings.num_frames, "Frame " + std::to_string(i + 1));
         
         cv::Mat current_base_image = original_image_rgba.clone();
@@ -342,16 +364,19 @@ void GifWorker::process() {
         
         cv::cvtColor(frame, frame, cv::COLOR_BGRA2RGBA);
         if (!GifWriteFrame(&writer, frame.data, width, height, frame_delay_cs)) {
-            emit finished(false, "Error: Failed to write frame to GIF.");
             GifEnd(&writer);
-            return;
+            message = "Failed to write frame to GIF.";
+            return Result::Failed;
         }
     }
 
-    GifEnd(&writer);
-    if (m_isCancelled) {
-        emit finished(false, "GIF generation cancelled.");
-    } else {
-        emit finished(true, QString::fromStdString(m_output_path));
+    if (!GifEnd(&writer)) {
+        message = "Failed to finalise GIF file.";
+        return Result::Failed;
     }
+    if (m_isCancelled) {
+        message = "GIF generation cancelled.";
+        return Result::Cancelled;
+    }
+    return Result::Success;
 }

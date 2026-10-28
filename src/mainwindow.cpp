@@ -7,7 +7,6 @@
 #include <QMessageBox>
 #include <QDir>
 #include <QStatusBar>
-#include <QDebug>
 #include <QDesktopServices>
 #include <QUrl>
 #include <QFileInfo>
@@ -20,8 +19,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent),
-    worker(nullptr), workerThread(nullptr)
+MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 {
     setWindowTitle("Psychedelic GIF Creator");
     resize(800, 800);
@@ -37,6 +35,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent),
 }
 
 MainWindow::~MainWindow() {
+    // Closing the window while rendering: ask the worker to stop, then wait
+    // for it (it checks the flag every frame, so this returns quickly).
+    if (worker) worker->cancel();
     if (workerThread && workerThread->isRunning()) {
         workerThread->quit();
         workerThread->wait();
@@ -83,7 +84,7 @@ void MainWindow::setupUi() {
 
     int row = 0;
     
-    auto createSliderRow = [&](const QString& label, QSlider*& slider, QWidget*& spinBox, const QString& tooltip) {
+    auto createSliderRow = [&](const QString& label, QSlider*& slider, QWidget* spinBox, const QString& tooltip) {
         auto labelWidget = new QLabel(label);
         labelWidget->setToolTip(tooltip);
         coreLayout->addWidget(labelWidget, row, 0);
@@ -101,26 +102,26 @@ void MainWindow::setupUi() {
     };
 
     numFramesSpinBox = new QSpinBox();
-    createSliderRow("Cycles:", numFramesSlider, reinterpret_cast<QWidget*&>(numFramesSpinBox), "Number of frames in the GIF.");
+    createSliderRow("Cycles:", numFramesSlider, numFramesSpinBox, "Number of frames in the GIF.");
     numFramesSlider->setRange(10, 200); numFramesSpinBox->setRange(10, 200);
 
     scaleDecaySpinBox = new QDoubleSpinBox();
-    createSliderRow("Warp:", scaleDecaySlider, reinterpret_cast<QWidget*&>(scaleDecaySpinBox), "Decay rate of layers (0.50-0.99). Smaller is faster.");
+    createSliderRow("Warp:", scaleDecaySlider, scaleDecaySpinBox, "Decay rate of layers (0.50-0.99). Smaller is faster.");
     scaleDecaySlider->setRange(50, 99); scaleDecaySpinBox->setRange(0.50, 0.99);
     scaleDecaySpinBox->setSingleStep(0.01); scaleDecaySpinBox->setDecimals(2);
 
     hueSpeedSpinBox = new QDoubleSpinBox();
-    createSliderRow("Pulse Speed:", hueSpeedSlider, reinterpret_cast<QWidget*&>(hueSpeedSpinBox), "Controls the speed of the color shifting effect.");
+    createSliderRow("Pulse Speed:", hueSpeedSlider, hueSpeedSpinBox, "Controls the speed of the color shifting effect.");
     hueSpeedSlider->setRange(0, 200); hueSpeedSpinBox->setRange(0.0, 20.0);
     hueSpeedSpinBox->setSingleStep(0.1); hueSpeedSpinBox->setDecimals(1);
     
     hueIntensitySpinBox = new QDoubleSpinBox();
-    createSliderRow("Pulse Intensity:", hueIntensitySlider, reinterpret_cast<QWidget*&>(hueIntensitySpinBox), "Controls the saturation of the color pulse effect. At 0, the effect is disabled.");
+    createSliderRow("Pulse Intensity:", hueIntensitySlider, hueIntensitySpinBox, "Controls the saturation of the color pulse effect. At 0, the effect is disabled.");
     hueIntensitySlider->setRange(0, 200); hueIntensitySpinBox->setRange(0.0, 2.0);
     hueIntensitySpinBox->setSingleStep(0.01); hueIntensitySpinBox->setDecimals(2);
 
     rotationSpeedSpinBox = new QDoubleSpinBox();
-    createSliderRow("Spin Speed:", rotationSpeedSlider, reinterpret_cast<QWidget*&>(rotationSpeedSpinBox), "Determines the total number of full rotations.");
+    createSliderRow("Spin Speed:", rotationSpeedSlider, rotationSpeedSpinBox, "Determines the total number of full rotations.");
     rotationSpeedSlider->setRange(0, 100); rotationSpeedSpinBox->setRange(0.0, 10.0);
     rotationSpeedSpinBox->setSingleStep(0.1); rotationSpeedSpinBox->setDecimals(1);
     
@@ -298,12 +299,15 @@ void MainWindow::startGifGeneration() {
     workerThread = new QThread(this);
     worker = new GifWorker(currentSettings, outputFilePath.toStdString());
     worker->moveToThread(workerThread);
-    connect(worker, &GifWorker::finished, workerThread, &QThread::quit);
-    connect(workerThread, &QThread::finished, this, [this](){ worker->deleteLater(); workerThread->deleteLater(); worker = nullptr; workerThread = nullptr; });
+    // Delete the worker in its own thread (while that thread's event loop is
+    // still running), then stop the thread and delete it from the GUI thread.
+    connect(worker, &GifWorker::finished, worker, &QObject::deleteLater);
+    connect(worker, &QObject::destroyed, workerThread, &QThread::quit);
+    connect(workerThread, &QThread::finished, workerThread, &QObject::deleteLater);
     connect(workerThread, &QThread::started, worker, &GifWorker::process);
     connect(worker, &GifWorker::progressUpdated, this, &MainWindow::handleGenerationProgress);
     connect(worker, &GifWorker::finished, this, &MainWindow::handleGenerationFinished);
-    connect(cancelButton, &QPushButton::clicked, worker, &GifWorker::cancel, Qt::DirectConnection);
+    connect(cancelButton, &QPushButton::clicked, worker, [w = worker]() { if (w) w->cancel(); }, Qt::DirectConnection);
     workerThread->start();
 }
 
@@ -312,11 +316,11 @@ void MainWindow::handleGenerationProgress(int percentage, const QString& message
     progressBar->setFormat(message + " (%p%)");
 }
 
-void MainWindow::handleGenerationFinished(bool success, const QString& pathOrMessage) {
+void MainWindow::handleGenerationFinished(GifWorker::Result result, const QString& pathOrMessage) {
     for (QWidget* w : m_controlsToManage) { w->setEnabled(true); }
     cancelButton->setVisible(false);
-    if (!success) {
-        if (pathOrMessage == "GIF generation cancelled.") {
+    if (result != GifWorker::Result::Success) {
+        if (result == GifWorker::Result::Cancelled) {
             statusBar()->showMessage(pathOrMessage, 5000);
         } else {
             QMessageBox::critical(this, "Generation Failed", pathOrMessage);

@@ -1,7 +1,6 @@
 // advancedsettingsdialog.cpp
 #include "advancedsettingsdialog.h"
 #include <random>
-#include <QDebug>
 
 AdvancedSettingsDialog::AdvancedSettingsDialog(GifSettings* settings, QWidget *parent)
     : QDialog(parent), settingsPtr(settings) {
@@ -166,13 +165,11 @@ void AdvancedSettingsDialog::setupConnections() {
     auto connectIntSlider = [this](QSlider* slider, QSpinBox* spinBox, int& setting){
         connect(slider, &QSlider::valueChanged, spinBox, &QSpinBox::setValue);
         connect(spinBox, QOverload<int>::of(&QSpinBox::valueChanged), slider, &QSlider::setValue);
-        // Corrected: added 'this' to lambda capture list
         connect(spinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, &setting](int val){ emit settingsChanged(); setting = val; });
     };
 
     auto connectDoubleSlider = [this](QSlider* slider, QDoubleSpinBox* spinBox, double& setting, double factor = 10.0){
-        // Corrected: changed capture from [this, =, &setting] to [=, this, &setting]
-        connect(slider, &QSlider::valueChanged, this, [=, this, &setting](int val){
+        connect(slider, &QSlider::valueChanged, this, [this, slider, spinBox, factor, &setting](int val){
             double newVal = val / factor;
             spinBox->blockSignals(true);
             spinBox->setValue(newVal);
@@ -180,8 +177,7 @@ void AdvancedSettingsDialog::setupConnections() {
             emit settingsChanged(); // Emit settingsChanged when value changes
             setting = newVal;
         });
-        // Corrected: changed capture from [this, =, &setting] to [=, this, &setting]
-        connect(spinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [=, this, &setting](double val){
+        connect(spinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, slider, spinBox, factor, &setting](double val){
             slider->blockSignals(true);
             slider->setValue(static_cast<int>(val * factor));
             slider->blockSignals(false);
