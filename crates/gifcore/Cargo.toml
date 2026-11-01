@@ -6,3 +6,4 @@ license = "GPL-3.0-or-later"
 description = "Headless render and GIF export engine for Psychedelic GIF Creator"
 
 [dependencies]
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "tiff", "bmp", "pnm"] }
