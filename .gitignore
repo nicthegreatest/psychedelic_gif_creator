@@ -1,0 +1,9 @@
+/target/
+/flatpak-build/
+/.flatpak-builder/
+/backups/
+/repo/
+/*.flatpak
+/_build/
+/builddir/
+src/config.rs
