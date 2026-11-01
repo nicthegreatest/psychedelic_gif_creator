@@ -1,9 +1,11 @@
 /target/
 /flatpak-build/
+/flatpak-repo/
 /.flatpak-builder/
 /backups/
 /repo/
 /*.flatpak
 /_build/
 /builddir/
+/.qwen/
 src/config.rs

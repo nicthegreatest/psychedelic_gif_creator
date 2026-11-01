@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = ["crates/gifcore"]
+
+[package]
+name = "gif-creator"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+authors = ["Nic"]
+description = "Psychedelic GIF Creator, GTK 4 / libadwaita frontend"
+
+[dependencies]
+adw = { version = "0.9", package = "libadwaita", features = ["v1_8"] }
+gtk = { version = "0.11", package = "gtk4", features = ["v4_16"] }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "unwind"
+strip = true

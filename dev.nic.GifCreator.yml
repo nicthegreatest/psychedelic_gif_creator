@@ -1,0 +1,50 @@
+# Local build of Psychedelic GIF Creator.
+#
+#   flatpak-builder --user --install --force-clean --install-deps-from=flathub \
+#       flatpak-build dev.nic.GifCreator.yml
+#
+# Everything is built offline: Rust crates come from cargo-sources.json
+# (regenerate with flatpak-cargo-generator.py after changing Cargo.lock).
+app-id: dev.nic.GifCreator
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: gif-creator
+finish-args:
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  # GPU rendering for GTK.
+  - --device=dri
+  - --env=RUST_BACKTRACE=1
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/gif-creator/cargo
+    CARGO_NET_OFFLINE: 'true'
+    RUSTFLAGS: -C force-frame-pointers=yes
+cleanup:
+  - /include
+  - /lib/pkgconfig
+modules:
+  - name: gif-creator
+    buildsystem: meson
+    builddir: true
+    run-tests: true
+    sources:
+      - type: dir
+        path: .
+        skip:
+          - .git
+          - _build
+          - _build_rel
+          - target
+          - .flatpak-builder
+          - flatpak-build
+          - flatpak-repo
+          - src/config.rs
+          - backups
+          - .qwen
+      - cargo-sources.json

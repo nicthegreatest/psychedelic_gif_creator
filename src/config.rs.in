@@ -1,0 +1,5 @@
+pub static VERSION: &str = @VERSION@;
+pub static NAME_SUFFIX: &str = @NAME_SUFFIX@;
+pub static APP_ID: &str = @APP_ID@;
+pub static SCHEMA_ID: &str = @SCHEMA_ID@;
+pub static PROFILE: &str = @PROFILE@;

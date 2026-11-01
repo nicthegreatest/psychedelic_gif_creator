@@ -15,7 +15,7 @@ Legend for Rust column: `[ ]` not done, `[x]` done, `drop` intentionally dropped
 | [ ] | Decode via OpenCV `IMREAD_UNCHANGED` (keeps 16-bit + alpha) | `src/core/image_loader.cpp` ~92 |
 | [ ] | EXIF orientation applied for images without alpha (re-read with `ANYDEPTH|ANYCOLOR`) | `src/core/image_loader.cpp` ~93–96 |
 | [ ] | Qt `QImage` fallback for formats OpenCV lacks | `src/core/image_loader.cpp` ~67, ~100 |
-| drop? | JPEG 2000 (`.jp2`) via OpenCV — no pure-Rust decoder; decide in M2 | `image_loader.cpp` (OpenCV) |
+| drop | JPEG 2000 (`.jp2`) via OpenCV — dropped (no pure-Rust decoder); not in the file filter | `image_loader.cpp` (OpenCV) |
 | [ ] | GIF input = first frame only | README "Using it"; OpenCV imread |
 | [ ] | Normalise to 8-bit BGRA: 16U ÷257; float 0..1 ×255 else min–max stretch; signed ints stretched; 1ch grey→BGRA; 2ch grey+alpha; 3ch→BGRA; 4ch as is; other channel counts error | `src/core/image_loader.cpp` `normaliseToBGRA8` ~11–65 |
 | [ ] | Errors: empty path, not a readable file, unreadable/unsupported format (exact messages) | `src/core/image_loader.cpp` ~78–110 |

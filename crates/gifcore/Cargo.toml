@@ -1,0 +1,8 @@
+[package]
+name = "gifcore"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+description = "Headless render and GIF export engine for Psychedelic GIF Creator"
+
+[dependencies]

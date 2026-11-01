@@ -6,6 +6,7 @@ verify with `cargo test`; they do not drive the GUI. Mark **PASS**, **FAIL** (wi
 
 | | Check | Expected | Milestone | Result |
 | --- | --- | --- | --- | --- |
+| [ ] | Empty window | `flatpak run dev.nic.GifCreator` shows an empty window titled Psychedelic GIF Creator | M1 | NIC |
 | [ ] | Launch | `flatpak run dev.nic.GifCreator` opens "Psychedelic GIF Creator" from the terminal and the app menu, with icon | M1 | NIC |
 | [ ] | Open image | File dialog, drag and drop and a typed path all load the image; preview appears | M5 | NIC |
 | [ ] | Odd inputs | Transparent PNG, 16-bit PNG, greyscale, rotated phone JPEG (EXIF) all look right; a text file shows a clear error | M5 | NIC |
