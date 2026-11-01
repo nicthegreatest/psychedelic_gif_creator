@@ -123,3 +123,95 @@ pub fn resize_nearest(src: &Bgra8, dst_w: u32, dst_h: u32) -> Bgra8 {
 
     dst
 }
+
+/// Bicubic resize of `src` to `dst_w × dst_h` (OpenCV `INTER_CUBIC`).
+///
+/// For each destination pixel `(x, y)` the source coordinate is mapped with a
+/// centre-aligned formula
+/// `fx = (x + 0.5) * src_w / dst_w - 0.5` (and `fy` likewise). The base source
+/// index is the floor of that coordinate; the four cubic taps are taken at
+/// `ix-1, ix, ix+1, ix+2` using the generalised cubic kernel with `A = -0.75`
+/// (Catmull–Rom), whose weights sum to one. Tap indices are clamped to the last
+/// valid source index, which replicates the edge pixel; every BGRA channel is
+/// interpolated the same way and rounded half-to-even. If `dst_w` or `dst_h` is
+/// zero, or the source is empty, an empty image of the requested size is
+/// returned.
+pub fn resize_cubic(src: &Bgra8, dst_w: u32, dst_h: u32) -> Bgra8 {
+    if dst_w == 0 || dst_h == 0 {
+        return Bgra8::new(dst_w, dst_h);
+    }
+    if src.width == 0 || src.height == 0 {
+        return Bgra8::new(dst_w, dst_h);
+    }
+
+    let src_w = src.width as f64;
+    let src_h = src.height as f64;
+    let last_x = (src.width - 1) as f64;
+    let last_y = (src.height - 1) as f64;
+    let src_stride = (src.width as usize) * Bgra8::CHANNELS;
+    let dst_stride = (dst_w as usize) * Bgra8::CHANNELS;
+
+    let mut dst = Bgra8::new(dst_w, dst_h);
+
+    for y in 0..dst_h {
+        let fy = ((y as f64 + 0.5) * src_h / dst_h as f64) - 0.5;
+        let iy = fy.floor();
+        let ty = fy - iy;
+        let wy = cubic_weights(ty);
+        // Clamp each of the four vertical taps (offsets -1, 0, +1, +2) to the
+        // last valid row, replicating the edge pixel.
+        let row_idx = [
+            (iy - 1.0).clamp(0.0, last_y) as usize,
+            iy.clamp(0.0, last_y) as usize,
+            (iy + 1.0).clamp(0.0, last_y) as usize,
+            (iy + 2.0).clamp(0.0, last_y) as usize,
+        ];
+        let dst_row = y as usize * dst_stride;
+
+        for x in 0..dst_w {
+            let fx = ((x as f64 + 0.5) * src_w / dst_w as f64) - 0.5;
+            let ix = fx.floor();
+            let tx = fx - ix;
+            let wx = cubic_weights(tx);
+            // Clamp each of the four horizontal taps to the last valid column.
+            let col_idx = [
+                (ix - 1.0).clamp(0.0, last_x) as usize,
+                ix.clamp(0.0, last_x) as usize,
+                (ix + 1.0).clamp(0.0, last_x) as usize,
+                (ix + 2.0).clamp(0.0, last_x) as usize,
+            ];
+
+            let mut acc = [0f64; Bgra8::CHANNELS];
+            for (sy, wy_j) in row_idx.iter().zip(wy.iter().copied()) {
+                let src_row = *sy * src_stride;
+                for (sx, wx_i) in col_idx.iter().zip(wx.iter().copied()) {
+                    let p = *sx * Bgra8::CHANNELS;
+                    let src_px = &src.data[src_row + p..src_row + p + Bgra8::CHANNELS];
+                    for (a, sv) in acc.iter_mut().zip(src_px) {
+                        *a += wx_i * wy_j * (*sv as f64);
+                    }
+                }
+            }
+
+            let dst_off = x as usize * Bgra8::CHANNELS;
+            let out = &mut dst.data[dst_row + dst_off..dst_row + dst_off + Bgra8::CHANNELS];
+            for (o, a) in out.iter_mut().zip(acc) {
+                *o = a.round_ties_even().clamp(0.0, 255.0) as u8;
+            }
+        }
+    }
+
+    dst
+}
+
+/// Generalised cubic convolution weights with `A = -0.75` (Catmull–Rom), for
+/// fraction `t ∈ [0, 1)` and taps at offsets -1, 0, +1, +2. The weights sum to
+/// one, so a uniform input reproduces that value exactly.
+fn cubic_weights(t: f64) -> [f64; 4] {
+    const A: f64 = -0.75;
+    let w0 = ((A * (t + 1.0) - 5.0 * A) * (t + 1.0) + 8.0 * A) * (t + 1.0) - 4.0 * A;
+    let w1 = ((A + 2.0) * t - (A + 3.0)) * t * t + 1.0;
+    let w2 = ((A + 2.0) * (1.0 - t) - (A + 3.0)) * (1.0 - t) * (1.0 - t) + 1.0;
+    let w3 = 1.0 - w0 - w1 - w2;
+    [w0, w1, w2, w3]
+}
