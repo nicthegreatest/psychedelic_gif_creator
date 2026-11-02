@@ -6,15 +6,18 @@
 //!
 //! Pixel work stays in BGRA/BGR so the port can be compared with v2 line for
 //! line. Kaleidoscope, stars, wave, pixelation, hue/saturation, invert and blur
-//! are M3; each is a no-op hook in v2's effect order. Their pixel parameters
-//! are still scaled by the preview scale, exactly as v2 does.
+//! live in [`crate::effects`] and run in v2's order. Pixel parameters are
+//! scaled by the preview scale, exactly as v2 does.
 
+use crate::effects::kaleidoscope::AnimatedRadial;
+use crate::effects::stars::Star;
+use crate::effects::{colour, kaleidoscope, stars, texture, wave};
 use crate::fit::{self, Interpolation, Rect};
 use crate::image::{bgra_to_bgr, Bgr8, Bgra8};
 use crate::kernels::pyr::pyr_down;
 use crate::kernels::resize::{resize_area, resize_cubic};
 use crate::kernels::warp::{rotation_matrix, warp_affine, Border};
-use crate::settings::{GifSettings, RotationDirection, StarPattern, WaveDirection, ZoomMode};
+use crate::settings::{GifSettings, RotationDirection, ZoomMode};
 
 const PI: f64 = std::f64::consts::PI;
 const TWO_PI: f64 = 2.0 * PI;
@@ -33,8 +36,13 @@ pub struct FrameRenderer {
     width: u32,
     height: u32,
     /// Pyramid of the fitted premultiplied image. Level 0 is full output size.
-    /// Rebuilt per frame only for an animated kaleidoscope, which is M3.
+    /// Empty when [`Self::animated_kaleido`] rebuilds it inside `render_frame`.
     pyramid: Vec<Bgra8>,
+    /// Radial kaleidoscope that turns. `None` for off, quadrant mirror and a
+    /// static radial fold (those are already baked into [`Self::pyramid`]).
+    animated_kaleido: Option<AnimatedRadial>,
+    /// Stars generated once from `star_seed`. Empty when the pattern is off.
+    stars: Vec<Star>,
     /// Content rect when every pixel in it is opaque. Empty means "no skip".
     opaque: Option<Rect>,
     /// 8-bit vignette multiplier, one value per pixel, or absent when off.
@@ -73,16 +81,21 @@ impl FrameRenderer {
         let plan = fit::fit_plan(&fitted, width, height, settings.fit_mode);
         let base = apply_fit(&fitted, &plan);
 
-        // M3: `prepareKaleidoscope` would mirror `base` (static) or store the
-        // polar maps (animated) here, before the pyramid is built. No-op: the
-        // fitted image is the pyramid base, so kaleidoscope modes do not change
-        // pixels until that hook is filled in.
+        // Opaque rect is the pre-kaleidoscope content, matching v2.
         let opaque = if content_fully_opaque(&base, plan.content) {
             Some(plan.content)
         } else {
             None
         };
-        let pyramid = build_pyramid(base);
+        let (pyramid, animated_kaleido) = match kaleidoscope::prepare(base, &settings) {
+            kaleidoscope::Prepared::Static(mirrored) => (build_pyramid(mirrored), None),
+            kaleidoscope::Prepared::Animated(state) => (Vec::new(), Some(state)),
+        };
+        let stars = stars::layout(
+            settings.num_stars,
+            settings.star_seed,
+            settings.star_pattern,
+        );
 
         let vignette = if settings.vignette_strength > 0.0 {
             Some(build_vignette(width, height, settings.vignette_strength))
@@ -101,6 +114,8 @@ impl FrameRenderer {
             width,
             height,
             pyramid,
+            animated_kaleido,
+            stars,
             opaque,
             vignette,
             rotation_turns,
@@ -141,14 +156,17 @@ impl FrameRenderer {
     pub fn render_frame(&self, index: i32) -> Bgr8 {
         let t = f64::from(index) / f64::from(self.settings.num_frames);
 
-        // M3: an animated kaleidoscope rebuilds the pyramid from
-        // `kaleidoscopeFrame(t)` here. Static and "off" both use `self.pyramid`.
-        let pyramid = &self.pyramid;
+        let rebuilt;
+        let pyramid = if let Some(state) = &self.animated_kaleido {
+            rebuilt = build_pyramid(kaleidoscope::frame_at(state, t));
+            rebuilt.as_slice()
+        } else {
+            self.pyramid.as_slice()
+        };
 
         let mut frame = Bgra8::new(self.width, self.height);
         self.composite_layers(&mut frame, pyramid, t);
-        // M3 hook. v2 draws stars onto the premultiplied frame (lighten).
-        draw_stars(&frame, &self.settings, t);
+        stars::draw(&mut frame, &self.stars, self.settings.star_pattern, t);
 
         // Premultiplied BGRA with the alpha dropped is "composited over black".
         let mut bgr = bgra_to_bgr(&frame);
@@ -159,11 +177,10 @@ impl FrameRenderer {
             bgr = oscillating_zoom(bgr, &self.settings, t);
         }
 
-        // M3 hooks, in v2's order: pixelate, wave, hue/saturation, invert, blur.
-        apply_pixelate(&bgr, self.settings.pixelation_level, self.scale);
-        apply_wave(&bgr, &self.settings, self.scale, t);
-        apply_colour(&bgr, &self.settings, t, index);
-        apply_blur(&bgr, self.settings.blur_radius, self.scale);
+        texture::pixelate(&mut bgr, self.settings.pixelation_level, self.scale);
+        wave::apply(&mut bgr, &self.settings, self.scale, t);
+        colour::apply(&mut bgr, &self.settings, t, index);
+        texture::blur(&mut bgr, self.settings.blur_radius, self.scale);
         bgr
     }
 
@@ -283,11 +300,6 @@ fn effective_rotation_turns(settings: &GifSettings) -> f64 {
     }
     // `f64::round` is half away from zero, like C++ `std::round`.
     settings.rotation_turns.round().max(1.0)
-}
-
-/// `max(1, lround(value * scale))`, v2's `pixelsFor`.
-fn pixels_for(value: f64, scale: f64) -> i32 {
-    (value * scale).round().max(1.0) as i32
 }
 
 fn premultiply(bgra: &mut Bgra8) {
@@ -624,82 +636,6 @@ fn bgr_to_bgra(src: &Bgr8) -> Bgra8 {
         dst[3] = 255;
     }
     out
-}
-
-/// M3 hook (no-op). v2 `drawStars`: radius `max(1, round(1.2 * min(W, H) / 600))`,
-/// which already follows the preview scale because `W` and `H` do.
-fn draw_stars(frame: &Bgra8, settings: &GifSettings, t: f64) {
-    if settings.star_pattern == StarPattern::None || settings.num_stars <= 0 {
-        return;
-    }
-    let unit = f64::from(frame.width.min(frame.height)) / 600.0;
-    let radius = (1.2 * unit).round().max(1.0);
-    // M3: mt19937 layout, anti-aliased circles, per-channel max (lighten).
-    let _ = (radius, t, settings.star_seed);
-}
-
-/// M3 hook (no-op). Block size is `pixelsFor(level, scale)`.
-fn apply_pixelate(bgr: &Bgr8, level: i32, scale: f64) {
-    if level <= 1 {
-        return;
-    }
-    let block = pixels_for(f64::from(level), scale);
-    if block > 1 {
-        let _down = (
-            (bgr.width / block as u32).max(1),
-            (bgr.height / block as u32).max(1),
-        );
-        // M3: nearest down to `W / block`, then nearest up to the frame size.
-    }
-}
-
-/// M3 hook (no-op). Amplitude is multiplied by the preview scale and frequency
-/// is divided by it (v2 `applyWave`).
-fn apply_wave(bgr: &Bgr8, settings: &GifSettings, scale: f64, t: f64) {
-    if settings.wave_direction == WaveDirection::None
-        || settings.wave_amplitude <= 0.0
-        || settings.wave_frequency <= 0.0
-    {
-        return;
-    }
-    let amplitude = settings.wave_amplitude * scale;
-    let frequency = settings.wave_frequency / scale;
-    let phase = TWO_PI * f64::from(settings.wave_cycles) * t;
-    // M3: per-row or per-column sine offset, bilinear remap, replicate border.
-    let _ = (bgr, amplitude, frequency, phase);
-}
-
-/// M3 hook (no-op). Hue shift and saturation pulse, then invert flashes.
-fn apply_colour(bgr: &Bgr8, settings: &GifSettings, t: f64, index: i32) {
-    let hue_shift = (180.0 * f64::from(settings.hue_cycles) * t).round() as i32 % 180;
-    let sat_mul = 1.0
-        + settings.saturation_pulse * (TWO_PI * f64::from(settings.saturation_pulses) * t).sin();
-    if hue_shift != 0 || (sat_mul - 1.0).abs() > 1e-9 {
-        // M3: OpenCV 8-bit HSV (H in 0..179) through a 256-entry LUT.
-        let _ = bgr;
-    }
-    let n = settings.num_frames.max(1);
-    let k = settings.invert_flashes;
-    if k > 0 {
-        let i = index.rem_euclid(n);
-        let flash = (i64::from(i) * i64::from(k)).rem_euclid(i64::from(n)) < i64::from(k);
-        if flash {
-            // M3: `cv::bitwise_not` on k evenly spaced frames.
-            let _ = bgr;
-        }
-    }
-}
-
-/// M3 hook (no-op). Sigma is `blur_radius * scale`, skipped at or below 0.05.
-fn apply_blur(bgr: &Bgr8, radius: f64, scale: f64) {
-    if radius <= 0.0 {
-        return;
-    }
-    let sigma = radius * scale;
-    if sigma > 0.05 {
-        // M3: Gaussian blur, kernel size from OpenCV's 8-bit rule.
-        let _ = (bgr, sigma);
-    }
 }
 
 /// Bilinear resize, OpenCV `INTER_LINEAR` coordinate convention

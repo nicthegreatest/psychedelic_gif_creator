@@ -1,7 +1,5 @@
-//! Ports of the M2 checks in v2 `tests/render_tests.cpp`: loop seam, determinism,
-//! 16:9 output size and preview scale 0.5. Loader and schema checks already live
-//! in their own test files. Kaleidoscope, stars and the other M3 effects are
-//! no-ops, so the v2 "stars visible" and "radial 6" cases are not repeated here.
+//! Ports of the loop, determinism, stars and size checks in v2
+//! `tests/render_tests.cpp`. Loader and schema checks live in their own files.
 
 use gifcore::image::{Bgr8, Bgra8};
 use gifcore::render::FrameRenderer;
@@ -162,8 +160,37 @@ fn loop_oscillating_spin_rounds_up() {
 }
 
 #[test]
+fn loop_radial6_two_turns() {
+    let mut s = base_settings();
+    s.kaleidoscope_mode = KaleidoscopeMode::Radial6;
+    s.kaleidoscope_turns = 2;
+    check_loop(
+        "radial 6-fold kaleidoscope, 2 turns",
+        &s,
+        &test_image(320, 200, false),
+    );
+}
+
+#[test]
+fn stars_visible_on_a_still_frame() {
+    let mut s = base_settings();
+    s.vignette_strength = 0.0;
+    s.hue_cycles = 0;
+    s.saturation_pulse = 0.0;
+    s.wave_direction = WaveDirection::None;
+    s.zoom_mode = ZoomMode::None;
+    let mut no_stars = s.clone();
+    no_stars.star_pattern = StarPattern::None;
+    let src = test_image(320, 200, false);
+    let with = FrameRenderer::new(&s, &src).render_frame(3);
+    let without = FrameRenderer::new(&no_stars, &src).render_frame(3);
+    let diff = mean_abs_diff(&with, &without);
+    println!("[stars] frame 3 mean abs diff {diff:.4}");
+    assert!(diff > 0.2, "stars not visible (diff {diff:.4})");
+}
+
+#[test]
 fn loop_everything_on_letterboxed() {
-    // M3 effects are no-ops; the loop still has to hold with them switched on.
     let mut s = base_settings();
     s.kaleidoscope_mode = KaleidoscopeMode::QuadrantMirror;
     s.star_pattern = StarPattern::Spiral;
