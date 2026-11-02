@@ -1,0 +1,20 @@
+# M3 golden frames from v2 FrameRenderer.
+output_width=64
+output_height=64
+num_frames=24
+fit_mode=Fill (crop)
+hue_cycles=4
+saturation_pulse=0
+saturation_pulses=3
+invert_flashes=0
+kaleidoscope_mode=None
+kaleidoscope_turns=1
+star_pattern=None
+num_stars=300
+star_seed=1
+wave_direction=None
+wave_amplitude=3.6000000000000001
+wave_frequency=0.10000000000000001
+wave_cycles=1
+pixelation_level=0
+blur_radius=0

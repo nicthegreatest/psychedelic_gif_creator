@@ -1,9 +1,14 @@
-// Writes v2 reference frames for the M2 renderer.
+// Writes v2 reference frames for the renderer.
 //
-// Kaleidoscope, stars, wave, pixelation, hue, saturation, invert and blur are
-// forced off. The Rust renderer still has those as no-op hooks (M3); leaving
-// them on would make the golden comparison measure effects that are not ported
-// yet. Everything else is v2's own FrameRenderer.
+// The five M2 configs force kaleidoscope, stars, wave, pixelation, hue,
+// saturation, invert and blur off. Their settings.txt bytes are part of the
+// golden record; settingsText() must keep producing them.
+//
+// The M3 configs are smaller (64×64, three frames) so the whole golden
+// directory stays under 2 MB. Each one turns a single effect on, except
+// "everything on, letterboxed" and "radial 6, 2 turns", which match the
+// combinations in v2's render tests. Star positions for seed 1 are dumped
+// as eight hex digits per float, the same draw order as FrameRenderer.
 //
 // Output layout (under the directory passed on the command line):
 //   sources/<name>.bgra          raw 8-bit BGRA, tightly packed
@@ -19,11 +24,15 @@
 
 #include <opencv2/imgproc.hpp>
 
+#include <cstdint>
+#include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <random>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -124,15 +133,74 @@ struct Config {
     bool transparent;
 };
 
+// Effect fields are written from the struct that was rendered, including the
+// ones that are off. from_text starts at the defaults, and several defaults
+// turn effects on. Doubles use max_digits10 so Rust reads the same value.
+static std::string settingsTextM3(const GifSettings& s) {
+    std::string text;
+    text += "# M3 golden frames from v2 FrameRenderer.\n";
+    auto line = [&](const std::string& key, const std::string& value) {
+        text += key + "=" + value + "\n";
+    };
+    auto dbl = [&](const char* key, double value) {
+        std::ostringstream out;
+        out.precision(std::numeric_limits<double>::max_digits10);
+        out << value;
+        line(key, out.str());
+    };
+    line("output_width", std::to_string(s.output_width));
+    line("output_height", std::to_string(s.output_height));
+    line("num_frames", std::to_string(s.num_frames));
+    line("fit_mode", enumLabels<FitMode>()[int(s.fit_mode)]);
+    line("hue_cycles", std::to_string(s.hue_cycles));
+    dbl("saturation_pulse", s.saturation_pulse);
+    line("saturation_pulses", std::to_string(s.saturation_pulses));
+    line("invert_flashes", std::to_string(s.invert_flashes));
+    line("kaleidoscope_mode", enumLabels<KaleidoscopeMode>()[int(s.kaleidoscope_mode)]);
+    line("kaleidoscope_turns", std::to_string(s.kaleidoscope_turns));
+    line("star_pattern", enumLabels<StarPattern>()[int(s.star_pattern)]);
+    line("num_stars", std::to_string(s.num_stars));
+    line("star_seed", std::to_string(s.star_seed));
+    line("wave_direction", enumLabels<WaveDirection>()[int(s.wave_direction)]);
+    dbl("wave_amplitude", s.wave_amplitude);
+    dbl("wave_frequency", s.wave_frequency);
+    line("wave_cycles", std::to_string(s.wave_cycles));
+    line("pixelation_level", std::to_string(s.pixelation_level));
+    dbl("blur_radius", s.blur_radius);
+    return text;
+}
+
+// Same generator as FrameRenderer: mt19937(seed) then x, y, phase, brightness.
+// The star list is private, so the harness repeats those four draws.
+static void dumpStarPositions(const fs::path& path) {
+    std::mt19937 gen(1);
+    std::uniform_real_distribution<float> unit(0.0f, 1.0f);
+    std::uniform_real_distribution<float> bright(0.5f, 1.0f);
+    std::string text;
+    auto bits = [](float value) {
+        std::uint32_t u = 0;
+        std::memcpy(&u, &value, sizeof u);
+        char buf[9];
+        std::snprintf(buf, sizeof buf, "%08x", u);
+        return std::string(buf);
+    };
+    for (int i = 0; i < 300; ++i) {
+        const float x = unit(gen), y = unit(gen), phase = unit(gen), br = bright(gen);
+        text += bits(x) + " " + bits(y) + " " + bits(phase) + " " + bits(br) + "\n";
+    }
+    writeText(path, text);
+}
+
 static void renderConfig(const fs::path& root, const Config& config, const cv::Mat& gradient,
-                         const cv::Mat& punched) {
+                         const cv::Mat& punched, bool m3) {
     const cv::Mat& source = config.transparent ? punched : gradient;
     const fs::path dir = root / config.name;
     fs::create_directories(dir);
 
     const char* sourceName =
         config.transparent ? "transparent_200x200.bgra" : "gradient_320x200.bgra";
-    writeText(dir / "settings.txt", settingsText(config.settings));
+    writeText(dir / "settings.txt",
+              m3 ? settingsTextM3(config.settings) : settingsText(config.settings));
 
     FrameRenderer renderer(config.settings, source);
     const int frames = renderer.frameCount();
@@ -196,6 +264,70 @@ int main(int argc, char** argv) {
         {"letterboxed", letterboxed, false},
         {"transparent source", transparent, true},
     };
-    for (const Config& config : configs) renderConfig(root, config, gradient, punched);
+    for (const Config& config : configs) renderConfig(root, config, gradient, punched, false);
+
+    // 64×64 is the schema minimum. Three frames of ten configs stay inside the
+    // 2 MB golden cap together with the M2 frames above.
+    auto m3Base = [] {
+        GifSettings s = m2Base();
+        s.output_width = 64;
+        s.output_height = 64;
+        return s;
+    };
+    GifSettings quadrant = m3Base();
+    quadrant.kaleidoscope_mode = KaleidoscopeMode::QuadrantMirror;
+    GifSettings stars = m3Base();
+    stars.star_pattern = StarPattern::Random;
+    stars.num_stars = 300;
+    stars.star_seed = 1;
+    GifSettings wave = m3Base();
+    wave.wave_direction = WaveDirection::Horizontal;
+    GifSettings pixelate = m3Base();
+    pixelate.pixelation_level = 4;
+    GifSettings hue = m3Base();
+    hue.hue_cycles = 4;
+    GifSettings saturation = m3Base();
+    saturation.saturation_pulse = 0.5;
+    saturation.saturation_pulses = 3;
+    GifSettings invert = m3Base();
+    invert.invert_flashes = 3;
+    GifSettings blur = m3Base();
+    blur.blur_radius = 1.0;
+
+    // v2 render_tests.cpp, at 64×64 instead of 160×120.
+    GifSettings everything;
+    everything.output_width = 64;
+    everything.output_height = 64;
+    everything.num_frames = 24;
+    everything.fit_mode = FitMode::Fit;
+    everything.kaleidoscope_mode = KaleidoscopeMode::QuadrantMirror;
+    everything.star_pattern = StarPattern::Spiral;
+    everything.wave_direction = WaveDirection::Vertical;
+    everything.wave_cycles = 3;
+    everything.pixelation_level = 4;
+    everything.invert_flashes = 3;
+    everything.blur_radius = 1.0;
+
+    GifSettings radial;
+    radial.output_width = 64;
+    radial.output_height = 64;
+    radial.num_frames = 24;
+    radial.kaleidoscope_mode = KaleidoscopeMode::Radial6;
+    radial.kaleidoscope_turns = 2;
+
+    const Config m3[] = {
+        {"quadrant mirror", quadrant, false},
+        {"stars random", stars, false},
+        {"wave horizontal", wave, false},
+        {"pixelate", pixelate, false},
+        {"hue", hue, false},
+        {"saturation", saturation, false},
+        {"invert flashes", invert, false},
+        {"blur", blur, false},
+        {"everything on, letterboxed", everything, false},
+        {"radial 6, 2 turns", radial, false},
+    };
+    for (const Config& config : m3) renderConfig(root, config, gradient, punched, true);
+    dumpStarPositions(root / "stars_seed1.txt");
     return 0;
 }

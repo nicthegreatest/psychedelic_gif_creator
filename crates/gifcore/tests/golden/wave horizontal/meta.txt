@@ -1,0 +1,7 @@
+source: ../sources/gradient_320x200.bgra
+source_width: 320
+source_height: 200
+width: 64
+height: 64
+frames: 24
+indices: 0 6 12

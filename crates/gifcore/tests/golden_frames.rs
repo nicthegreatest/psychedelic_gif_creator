@@ -1,8 +1,11 @@
 //! Frames from `tools/v2-golden` against `FrameRenderer`.
 //!
 //! Mean absolute difference ≤ 1.0, and the 99th percentile of absolute
-//! difference ≤ 8 on each channel. The reference configs turn M3 effects off;
-//! see the comment at the top of `tools/v2-golden/main.cpp`.
+//! difference ≤ 8 on each channel. The first five configs leave the M3
+//! effects off. The rest are one effect each, plus "everything on,
+//! letterboxed" and "radial 6, 2 turns". Those also have to loop: frame
+//! `num_frames` matches frame 0, and that seam stays well below the step
+//! from frame 0 to frame 1.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -18,6 +21,19 @@ const CONFIGS: [&str; 5] = [
     "oscillating 0.3 spin (rounded)",
     "letterboxed",
     "transparent source",
+];
+
+const M3_CONFIGS: [&str; 10] = [
+    "quadrant mirror",
+    "stars random",
+    "wave horizontal",
+    "pixelate",
+    "hue",
+    "saturation",
+    "invert flashes",
+    "blur",
+    "everything on, letterboxed",
+    "radial 6, 2 turns",
 ];
 
 fn golden_root() -> PathBuf {
@@ -52,6 +68,16 @@ struct ChannelStats {
     p99_b: u8,
     p99_g: u8,
     p99_r: u8,
+}
+
+fn mean_abs(a: &Bgr8, b: &Bgr8) -> f64 {
+    let sum: u64 = a
+        .data
+        .iter()
+        .zip(&b.data)
+        .map(|(p, q)| u64::from(p.abs_diff(*q)))
+        .sum();
+    sum as f64 / a.data.len() as f64
 }
 
 fn compare(got: &Bgr8, rgba: &[u8]) -> ChannelStats {
@@ -91,7 +117,8 @@ fn compare(got: &Bgr8, rgba: &[u8]) -> ChannelStats {
 #[test]
 fn matches_v2_within_tolerance() {
     let root = golden_root();
-    for name in CONFIGS {
+    for name in CONFIGS.into_iter().chain(M3_CONFIGS) {
+        let m3 = M3_CONFIGS.contains(&name);
         let dir = root.join(name);
         let meta =
             fs::read_to_string(dir.join("meta.txt")).unwrap_or_else(|e| panic!("{name} meta: {e}"));
@@ -142,6 +169,18 @@ fn matches_v2_within_tolerance() {
                 stats.p99_b,
                 stats.p99_g,
                 stats.p99_r
+            );
+        }
+        if m3 {
+            let f0 = renderer.render_frame(0);
+            let f1 = renderer.render_frame(1);
+            let seam = mean_abs(&f0, &renderer.render_frame(frames));
+            let step = mean_abs(&f0, &f1);
+            println!("{name} loop: seam {seam:.4}, frame-to-frame {step:.4}");
+            assert!(seam < 0.05, "{name}: loop seam too visible ({seam:.4})");
+            assert!(
+                step > 10.0 * seam || step < 1e-9,
+                "{name}: seam ({seam:.4}) not clearly below normal motion ({step:.4})"
             );
         }
     }
