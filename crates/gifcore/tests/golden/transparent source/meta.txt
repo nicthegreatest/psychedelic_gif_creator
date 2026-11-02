@@ -1,0 +1,7 @@
+source: ../sources/transparent_200x200.bgra
+source_width: 200
+source_height: 200
+width: 160
+height: 120
+frames: 24
+indices: 0 6 12
