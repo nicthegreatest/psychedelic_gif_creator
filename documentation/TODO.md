@@ -36,3 +36,9 @@ Deferred items, open decisions and known issues. Planned milestone work lives in
   differs from OpenCV `INTER_AREA` by at most 1 per channel. Measured mean abs diff about 0.11,
   99th percentile 1. OpenCV takes a faster path for integer factors; the area kernel follows the
   general overlap formula and was left unchanged. Inside the M2 tolerance (mean ≤ 1, p99 ≤ 8).
+- On the 64×64 M3 goldens, a handful of pixels differ by 1 in the blue channel even when the
+  effect under test is idle at that frame (5 pixels on the plain oscillating frame, spread by
+  pixelate and blur). One further HSV-to-BGR pixel differs by 1 where the AVX2 `v_trunc` result
+  and the scalar float formula land on opposite sides of an integer. Mean abs diff stays under
+  0.003 and the 99th percentile is 0. Radial 3-fold and 4-fold have no golden of their own; the
+  directory was within 18 KB of the 2 MB cap, and they share the radial 6 map code.

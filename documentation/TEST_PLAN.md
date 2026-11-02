@@ -19,7 +19,7 @@ verify with `cargo test`; they do not drive the GUI. Mark **PASS**, **FAIL** (wi
 | [ ] | Cancel export | Cancel stops quickly and no half-written file is left | M5 | NIC |
 | [ ] | Close during export | Asks before quitting; quitting cancels cleanly | M5 | NIC |
 | [ ] | Same look as v2 | Same image + same settings in v2 and the Rust app give GIFs that look the same side by side | M5 | NIC |
-| [ ] | Default preset vs v2 | Kaleidoscope, stars, wave, pixelate, hue, saturation, invert and blur are still no-ops, so a default preset will not match v2 until those effects land | M3 | NIC |
+| [ ] | Default preset vs v2 | Headless frames for the default motion and each M3 effect match v2 within the golden tolerance. A side-by-side look of the preview and the exported GIF is still the "Same look as v2" check | M5 | NIC |
 | [ ] | Settings persist | Change settings, quit, reopen: same settings, window size and folders | M6 | NIC |
 | [ ] | Presets | Save, load, delete, export and import a preset | M6 | NIC |
 | [ ] | Bundle install | `flatpak install --user gif-creator.flatpak` on another machine/user pulls the runtime if missing and the app runs | M7 | NIC |
