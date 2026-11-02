@@ -8,14 +8,15 @@ Layout: crates/gifcore/ = headless core (no GTK, all tests here); src/ = GTK app
 1. Do only the task in the prompt. Touch only the files it names. Read other files only if the
    task names them or you need a type signature (use grep, not rg; rg is not installed).
 2. Never modify /home/nic/Software/gif_creator_v2. Never commit or push; Nic reviews and commits.
-3. No Flatpak, Meson, manifest or cargo-sources work. No new dependencies.
-4. Determinism: a frame is a pure function of (settings, image, frame index). No shared mutable
+3. No Flatpak, Meson, manifest or cargo-sources work. No new dependencies, no Cargo.lock changes.
+4. Never edit or delete tests given in a prompt. If one looks wrong, stop and report.
+5. Determinism: a frame is a pure function of (settings, image, frame index). No shared mutable
    state, no float reductions across threads, no unseeded RNG. Animations loop seamlessly.
-5. Tests: never hand-calculate expected values. Use obvious inputs (identity, all-zero, uniform
+6. Tests: never hand-calculate expected values. Use obvious inputs (identity, all-zero, uniform
    colour, 2x2 to 1x1) or check properties (size, value range, monotonic). If an exact number is
    needed, compute it with a short script and paste the output.
-6. Write stubs with todo!() first, then fill in bodies. Prefer iterators/zip over index loops.
-7. If a fix fails twice, stop and report the exact error text.
+7. Write stubs with todo!() first, then fill in bodies. Prefer iterators/zip over index loops.
+8. If a fix fails twice, stop and report the exact error text.
 
 ## Commands (run inside the GNOME 50 SDK; host cargo is too old)
 SDK='flatpak run --share=network --filesystem=home --command=bash org.gnome.Sdk//50 -c'
@@ -25,4 +26,6 @@ $SDK "$ENV && cargo clippy -p gifcore --all-targets -- -D warnings"
 $SDK "$ENV && cargo fmt --all"
 
 ## Report
-Files changed, test and clippy results, anything skipped or uncertain.
+`git status --short`, `git diff --stat`, test/clippy pass counts, any deviation from the spec.
+
+Full-scope agents (not the local model) also read documentation/AGENT_EXTRAS.md.
