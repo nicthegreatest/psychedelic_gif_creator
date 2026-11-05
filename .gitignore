@@ -1,0 +1,25 @@
+# Build output (always build out-of-source, e.g. cmake -B build)
+/build*/
+/out/
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles/
+*_autogen/
+compile_commands.json
+
+# Binaries / objects
+*.o
+*.a
+*.so
+gif_creator_gui
+
+# Editors / tools
+.vscode/
+.idea/
+*.swp
+__pycache__/
+*.pyc
+
+# Generated output
+*.gif
+!tests/data/*.gif

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Psychedelic GIF Creator
+GenericName=Animated GIF Generator
+Comment=Turn a still image into a looping psychedelic GIF
+Exec=@CMAKE_INSTALL_FULL_BINDIR@/gif_creator_gui
+Icon=psychedelic-gif-creator
+Terminal=false
+Categories=Graphics;2DGraphics;
+Keywords=gif;animation;psychedelic;kaleidoscope;
+StartupWMClass=gif_creator_gui

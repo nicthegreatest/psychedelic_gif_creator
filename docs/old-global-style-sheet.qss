@@ -1,0 +1,106 @@
+/* Global Font and Base Colors */
+QMainWindow, QDialog, QToolTip {
+    font-family: "Segoe UI", "Roboto", "Open Sans", sans-serif;
+    background-color: #20232A; /* Main Background */ 
+    color: #ABB2BF;            /* Primary Text */ 
+}
+
+/* GroupBox Styling */
+QGroupBox {
+    background-color: #282C34; /* Card Background */ 
+    border: 1px solid #3A4750; 
+    border-radius: 8px; 
+    margin-top: 1ex; 
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin; 
+    subcontrol-position: top left; 
+    padding: 0 5px; 
+    color: #90CAF9; 
+    font-weight: bold; 
+}
+
+/* Label Styling */
+QLabel {
+    color: #ABB2BF;
+    padding: 2px;
+}
+
+/* Button Styling */
+QPushButton {
+    background-color: #3A4750; 
+    color: #E0E0E0; 
+    border: none; 
+    border-radius: 5px; 
+    padding: 8px 15px; 
+    font-weight: bold; 
+}
+
+QPushButton:hover {
+    background-color: #56B6C2; /* Teal Accent */ 
+    color: #20232A; 
+}
+
+QPushButton:pressed {
+    background-color: #4A9EAD; /* Darker Teal */ 
+}
+
+/* Special Button for Generate/Launch */
+QPushButton#generateButton {
+    background-color: #56B6C2; /* Teal Accent */
+    color: #20232A;
+}
+QPushButton#generateButton:hover {
+    background-color: #67c3d0; /* Lighter Teal */
+}
+
+/* Input Widget Styling */
+QLineEdit, QComboBox, QDoubleSpinBox, QSpinBox {
+    background-color: #20232A;
+    border: 1px solid #3A4750;
+    border-radius: 5px;
+    padding: 5px;
+    color: #ABB2BF;
+}
+QLineEdit:focus, QDoubleSpinBox:focus, QSpinBox:focus {
+    border: 1px solid #56B6C2; /* Teal Accent on focus */ 
+}
+
+/* Slider Styling */
+QSlider::groove:horizontal {
+    height: 8px;
+    background: #282C34;
+    border-radius: 4px;
+}
+
+QSlider::handle:horizontal {
+    background: #56B6C2; /* Teal Accent */ 
+    border: 1px solid #ABB2BF;
+    width: 18px;
+    margin: -5px 0;
+    border-radius: 9px;
+}
+
+/* ProgressBar Styling */
+QProgressBar {
+    border: 1px solid #3A4750;
+    border-radius: 5px;
+    text-align: center;
+    color: #ABB2BF;
+}
+
+QProgressBar::chunk {
+    background-color: #56B6C2; /* Teal Accent */ 
+    border-radius: 4px;
+}
+
+/* Tooltip Styling */
+QToolTip {
+    border: 1px solid #3A4750;
+    padding: 5px;
+    border-radius: 4px;
+    background-color: #282C34; 
+    color: #ABB2BF; 
+    opacity: 220;
+}

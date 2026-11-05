@@ -1,0 +1,105 @@
+Action Plan: UI/UX Refinement
+Based on your design document, here is a phased plan to reorient the application's visual style to be clean, modern, and intuitive.
+
+Phase 1: The Foundation - Global Stylesheet
+This is the most critical phase. We will create a single, comprehensive Qt Style Sheet (QSS) string in mainwindow.cpp that defines the entire visual language of the application. This ensures consistency and makes future tweaks much easier.
+
+Action Items:
+
+Define the Color Palette: We will use the exact colors you suggested for a modern, dark theme.
+
+Main Background: #20232A (Deep almost-black)
+
+UI Card/Groupbox Background: #282C34 (Slightly lighter)
+
+Primary Text: #ABB2BF (Muted light gray)
+
+Accent Color (Teal): #56B6C2
+
+Success/Error: #2ECC71 (Green), #E74C3C (Red)
+
+Set Global Font: We will apply a clean, cross-platform sans-serif font like "Segoe UI" with fallbacks.
+
+Style Base Widgets: We will create base styles for QMainWindow, QDialog, QGroupBox, QLabel, and QPushButton to establish the foundational look and feel, including border-radius: 8px; for soft edges.
+
+Implement in main.cpp: To ensure the style is truly global and applies to the AdvancedSettingsDialog as well, we will set this master stylesheet on the QApplication object itself in main.cpp right after it is created.
+
+Example QSS Snippet for main.cpp:
+
+QApplication {
+    font-family: "Segoe UI", "Roboto", "Open Sans", sans-serif;
+}
+
+QMainWindow, QDialog {
+    background-color: #20232A;
+    color: #ABB2BF;
+}
+
+QGroupBox {
+    background-color: #282C34;
+    border: 1px solid #3A4750;
+    border-radius: 8px;
+    margin-top: 1ex;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 5px;
+    color: #90CAF9;
+    font-weight: bold;
+}
+
+Phase 2: Overhaul Layouts & Spacing
+With the base style set, we'll restructure the UI for better visual hierarchy and breathing room, as you specified.
+
+Action Items:
+
+MainWindow Restructure:
+
+The setupUi() method in mainwindow.cpp will be refactored.
+
+We will use setContentsMargins() and setSpacing() on all layouts (QVBoxLayout, QGridLayout) to create the desired padding.
+
+The central image preview will be given more prominence.
+
+Advanced Settings Dialog:
+
+The same layout principles will be applied to advancedsettingsdialog.cpp.
+
+Controls will be grouped logically within a main QGroupBox.
+
+Phase 3: Refine Interactive Elements
+This phase is all about the "feel" of the application and implementing the micro-interactions you described.
+
+Action Items:
+
+Reactive Buttons: We'll add :hover and :pressed states to the QSS for QPushButton to make them feel responsive, using the chosen accent color.
+
+Custom Sliders: The QSlider will be fully custom-styled using QSS to match the new theme, with an accent-colored handle.
+
+Styled Inputs: QLineEdit, QComboBox, and QDoubleSpinBox will be styled to match the dark theme, with focus indicators that use the accent color.
+
+Polished Progress Bar: The QProgressBar will be updated to match the new aesthetic.
+
+Custom Tooltips: We will implement the custom dark tooltip style you designed using QToolTip QSS.
+
+Example Button QSS:
+
+QPushButton {
+    background-color: #3A4750;
+    color: #E0E0E0;
+    border: none;
+    border-radius: 5px;
+    padding: 8px 15px;
+    font-weight: bold;
+}
+QPushButton:hover {
+    background-color: #56B6C2; /* Teal Accent */
+    color: #20232A;
+}
+QPushButton:pressed {
+    background-color: #4A9EAD; /* Darker Teal */
+}
+
+If this plan looks good to you, I will proceed with Phase 1 and provide you with a new, single stylesheet to apply in your main.cpp that will instantly transform the look of the entire application.
