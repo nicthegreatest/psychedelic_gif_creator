@@ -50,9 +50,10 @@ gif_creator_rs/
     src/rng.rs               mt19937 + libstdc++ uniform_real_distribution<float> (star parity)
     src/render.rs            FrameRenderer: precompute in new(), render_frame(i) is &self + pure
     src/effects/             kaleidoscope, stars, wave, colour, texture (pixelate/blur/vignette)
-    src/quantize.rs          port of gif-h palette (kd-tree median split), threshold + dither
-    src/export.rs            parallel render + palette, ordered delta-map + LZW via `gif` crate,
-                             progress callback, cancel flag, partial-file cleanup
+    src/export/              palette.rs (gif-h kd-tree median split), quantize.rs (threshold +
+                             dither, delta transparency), writer.rs (gif-h container + LZW),
+                             delay.rs, mod.rs (scoped-thread render + palette, ordered encode,
+                             progress/cancel, temp file renamed on success)
     examples/bench.rs        same CLI as v2's gif_bench
     tests/                   loop, determinism, thread-count, loader, schema, golden
     tests/golden/            small reference PNG/GIF/RGBA dumps from v2

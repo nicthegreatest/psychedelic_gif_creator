@@ -20,6 +20,8 @@ verify with `cargo test`; they do not drive the GUI. Mark **PASS**, **FAIL** (wi
 | [ ] | Close during export | Asks before quitting; quitting cancels cleanly | M5 | NIC |
 | [ ] | Same look as v2 | Same image + same settings in v2 and the Rust app give GIFs that look the same side by side | M5 | NIC |
 | [ ] | Default preset vs v2 | Headless frames for the default motion and each M3 effect match v2 within the golden tolerance. A side-by-side look of the preview and the exported GIF is still the "Same look as v2" check | M5 | NIC |
+| [ ] | GIF timing | A 12 fps export plays at 12 fps in a browser and loops with no pause at the seam (delays alternate 8, 8, 9 cs) | M5 | NIC |
+| [ ] | Export speed | `cargo run -p gifcore --release --example bench -- <photo> /tmp/rs.gif none 0 600x600` is no slower than 2× v2's `gif_bench` with the same arguments (M4: 1.10 s vs 1.20 s on Nic's PC) | M4 | NIC |
 | [ ] | Settings persist | Change settings, quit, reopen: same settings, window size and folders | M6 | NIC |
 | [ ] | Presets | Save, load, delete, export and import a preset | M6 | NIC |
 | [ ] | Bundle install | `flatpak install --user gif-creator.flatpak` on another machine/user pulls the runtime if missing and the app runs | M7 | NIC |
