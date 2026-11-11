@@ -1,6 +1,7 @@
 //! Headless render and GIF export engine for Psychedelic GIF Creator (no GTK).
 
 pub mod effects;
+pub mod export;
 pub mod fit;
 pub mod image;
 pub mod kernels;

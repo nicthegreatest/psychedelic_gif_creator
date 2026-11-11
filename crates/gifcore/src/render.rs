@@ -139,6 +139,11 @@ impl FrameRenderer {
         effective_rotation_turns(settings)
     }
 
+    /// Settings this renderer was built from.
+    pub fn settings(&self) -> &GifSettings {
+        &self.settings
+    }
+
     /// Output width and height.
     pub fn frame_size(&self) -> (u32, u32) {
         (self.width, self.height)
