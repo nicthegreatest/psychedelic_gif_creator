@@ -18,6 +18,9 @@ finish-args:
   - --socket=wayland
   # GPU rendering for GTK.
   - --device=dri
+  # Real paths in the home folder (as Cutline): typed paths work, the export's
+  # temporary file sits next to the output, and M6 can reopen the last image.
+  - --filesystem=home
   - --env=RUST_BACKTRACE=1
 build-options:
   append-path: /usr/lib/sdk/rust-stable/bin

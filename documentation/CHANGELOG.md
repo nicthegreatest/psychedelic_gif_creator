@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Generate GIF: save dialog suggesting `<image>_psychedelic.gif` in the last folder used,
   `.gif` appended, progress bar with Cancel, error dialog, "GIF generation complete." dialog
   with "Show in folder", and a "Stop it and quit?" question when closing during an export.
+- The Flatpak can read and write your home folder (`--filesystem=home`), so typed image paths
+  work and exports save next to their temporary file.
 
 ### Changed
 - GIF frame delays alternate (8, 9, 8 cs at 12 fps) so the GIF plays at the chosen frame rate;

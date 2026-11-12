@@ -22,7 +22,7 @@ verify with `cargo test`; they do not drive the GUI. Mark **PASS**, **FAIL** (wi
 | [ ] | Export errors | Generate with no image says "Please choose an input image first."; with a deleted or non-image file says "Cannot read image" with the loader text | M5 | NIC |
 | [ ] | Done dialog | "GIF generation complete." shows the path; "Show in folder" opens the folder in Files (Flatpak: through the portal) | M5 | NIC |
 | [ ] | Spin rounding toast | Oscillating mode, spin 2.5: a toast says it is rounded to 3 whole turns; Tunnel mode shows no toast | M5 | NIC |
-| [ ] | Flatpak file access | In the Flatpak: Browse and drag and drop load images; saving to any folder works (temp file renamed through the portal); a typed path to your home folder fails with "Cannot open …" (expected until the file-access decision in TODO) | M5 | NIC |
+| [ ] | Flatpak file access | In the Flatpak: Browse, drag and drop and a typed path anywhere in your home folder (e.g. `~/Pictures/x.png`) load the image; saving to a home folder works, including a name typed without `.gif` (saved as `<name>.gif`) | M5 | NIC |
 | [ ] | Preview speed | Dragging a slider on a 600×600 default config feels responsive; Play at 12 fps does not stutter badly (frames are dropped, not queued) | M5 | NIC |
 | [ ] | HiDPI | At 200 % scaling the preview is sharp | M5 | NIC |
 | [ ] | Same look as v2 | Same image + same settings in v2 and the Rust app give GIFs that look the same side by side | M5 | NIC |

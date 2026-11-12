@@ -6,13 +6,6 @@ Deferred items, open decisions and known issues. Planned milestone work lives in
 - None.
 
 ## Medium
-- File access: M5 is portal-only (no `--filesystem` in the manifest). The file dialog, drag and
-  drop and saving work through the document portal, but a typed path outside the sandbox fails
-  with "Cannot open …" in the Flatpak, and the last image (M6) cannot be reopened after a
-  restart. Decide: add `--filesystem=home` (as Cutline) or keep portal-only and hide the path
-  entry in the Flatpak. Finalise in M7.
-- Saving a GIF whose name had no `.gif` (the app appends it) fails inside the Flatpak, because
-  the portal only granted the name typed. Fix with the file-name decision above.
 - Optional "High quality" palette mode with `imagequant` (only if GPL-3.0-or-later).
 - Headless CLI (`gif-creator --settings preset.txt in.png out.gif`) built on `gifcore`.
 - Publish to Flathub (needs metainfo screenshots, a public git repo and release tags).
@@ -36,6 +29,8 @@ Deferred items, open decisions and known issues. Planned milestone work lives in
 - AVIF/HEIC input (needs C libraries; would come from the runtime, not crates).
 
 ## Resolved
+- File access (M5): the Flatpak gets `--filesystem=home` (as Cutline) and keeps the typed path
+  box. Files outside home (e.g. `/run/media`) still go through the portal.
 - Frame delays (M5): keep `DelayMode::Accumulated` as the default; fps tooltip and
   `tests/schema.rs` reworded.
 - v2's "Cannot read image" check before export lives in the M5 export UI.

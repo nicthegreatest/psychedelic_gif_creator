@@ -87,7 +87,7 @@ Key design points:
 - **File access** through portals (`gtk::FileDialog`, drag and drop, `gtk::FileLauncher` for
   "Show in folder"), no `--filesystem` permission. If the typed-path entry or remembered last
   image proves awkward through the document portal, fall back to `--filesystem=home` like
-  Cutline (decision in TODO).
+  Cutline. Decided in M5: `--filesystem=home` is in the manifest.
 - **UI** built in Rust code from the schema (an `AdwPreferencesGroup` of rows per group, a
   slider + spin row for numbers, `AdwComboRow` for choices, `AdwSwitchRow` for bools). No
   Blueprint, which avoids the blueprint-compiler subproject.
