@@ -8,7 +8,10 @@ Deferred items, open decisions and known issues. Planned milestone work lives in
 ## Medium
 - Optional "High quality" palette mode with `imagequant` (only if GPL-3.0-or-later).
 - Headless CLI (`gif-creator --settings preset.txt in.png out.gif`) built on `gifcore`.
-- Publish to Flathub (needs metainfo screenshots, a public git repo and release tags).
+- Publish to Flathub (needs metainfo screenshots, a public git repo, a real homepage URL in the
+  metainfo instead of the GitHub profile, and release tags).
+- Other platforms: macOS and Windows builds (Rust and GTK 4 are cross-platform; needs separate
+  packaging, e.g. MSYS2/gvsbuild installer on Windows, a `.app` bundle on macOS).
 
 ## Low
 - Fit safety resize (`cv::resize` `INTER_LINEAR` when rounding leaves the fitted canvas off

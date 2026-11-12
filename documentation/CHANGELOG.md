@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-12
+
 ### Added
 - Planning documents for the Rust + GTK 4 rewrite of Psychedelic GIF Creator: plan, feature
   inventory of v2, TODO, manual test plan and agent guide.
@@ -36,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The window remembers its size and maximized state, and the open and save dialogs start in the
   folders used last time (GSettings; folders that no longer exist are skipped).
 - About dialog in the header menu: version, GPL-3.0-or-later, developer nicthegreatest.
+- Packaging for 1.0.0: symbolic app icon (derived from the app icon), fuller AppStream
+  metainfo (description, features, 1.0.0 release notes, OARS rating, developer nicthegreatest,
+  homepage), and a single-file bundle `dist/GifCreator-1.0.0.flatpak` that pulls the GNOME 50
+  runtime from Flathub.
 
 ### Changed
 - GIF frame delays alternate (8, 9, 8 cs at 12 fps) so the GIF plays at the chosen frame rate;

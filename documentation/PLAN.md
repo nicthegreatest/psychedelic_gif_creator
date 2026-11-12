@@ -202,6 +202,9 @@ with `--runtime-repo` pointing at Flathub, size report, a run on a clean user (o
 to confirm the runtime auto-installs, Nic's TEST_PLAN pass, version 1.0.0 entry in CHANGELOG.
 Acceptance: `gif-creator.flatpak` installs on a machine without the SDK; size numbers in the
 report; TEST_PLAN all PASS or listed in TODO.
+Done 2026-11-12 (local bundle, not Flathub): `dist/GifCreator-1.0.0.flatpak` (~0.8 MB, 2.1 MB
+installed), `appstreamcli validate` and `desktop-file-validate` pass, tag `v1.0.0`. The
+clean-machine install is Nic's TEST_PLAN check.
 
 ## 6. Risks
 

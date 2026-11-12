@@ -33,4 +33,5 @@ verify with `cargo test`; they do not drive the GUI. Mark **PASS**, **FAIL** (wi
 | [ ] | Folders remembered | Open an image and save a GIF in two different folders, quit, reopen: Browse starts in the image folder, Generate GIF's dialog in the save folder. Delete or rename the save folder, reopen: the dialog opens normally (no error) | M6 | NIC |
 | [ ] | Fresh start | Quit, delete `~/.var/app/dev.nic.GifCreator/config/glib-2.0/settings/keyfile` (or put junk in it), reopen: 1100×760 window, no errors; effect settings are always the defaults and the console is off | M6 | NIC |
 | [ ] | About | Header menu → About Psychedelic GIF Creator shows the icon, version 0.1.0, GPL-3.0-or-later and developer nicthegreatest | M6 | NIC |
-| [ ] | Bundle install | `flatpak install --user gif-creator.flatpak` on another machine/user pulls the runtime if missing and the app runs | M7 | NIC |
+| [ ] | Bundle install | On another machine or user (e.g. Debian/Ubuntu with Flatpak and the Flathub remote): `flatpak install --user GifCreator-1.0.0.flatpak` pulls the GNOME 50 runtime if missing; the app starts from the app menu with its icon; About shows 1.0.0 | M7 | NIC |
+| [ ] | Bundle on this PC | `flatpak install --user --reinstall dist/GifCreator-1.0.0.flatpak` then `flatpak info --user dev.nic.GifCreator` shows Version 1.0.0 (checked by the agent on 2026-11-12) | M7 | PASS |
