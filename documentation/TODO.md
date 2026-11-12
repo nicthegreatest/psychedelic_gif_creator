@@ -6,16 +6,16 @@ Deferred items, open decisions and known issues. Planned milestone work lives in
 - None.
 
 ## Medium
-- File access: portal-only vs `--filesystem=home` (typed paths, remembering the last image).
-  Decide in M5, finalise in M7.
+- File access: M5 is portal-only (no `--filesystem` in the manifest). The file dialog, drag and
+  drop and saving work through the document portal, but a typed path outside the sandbox fails
+  with "Cannot open …" in the Flatpak, and the last image (M6) cannot be reopened after a
+  restart. Decide: add `--filesystem=home` (as Cutline) or keep portal-only and hide the path
+  entry in the Flatpak. Finalise in M7.
+- Saving a GIF whose name had no `.gif` (the app appends it) fails inside the Flatpak, because
+  the portal only granted the name typed. Fix with the file-name decision above.
 - Optional "High quality" palette mode with `imagequant` (only if GPL-3.0-or-later).
 - Headless CLI (`gif-creator --settings preset.txt in.png out.gif`) built on `gifcore`.
 - Publish to Flathub (needs metainfo screenshots, a public git repo and release tags).
-- Frame delays: export defaults to `DelayMode::Accumulated` (e.g. 8, 8, 9 cs at 12 fps, so the
-  loop plays at the requested rate); v2 used one rounded delay for every frame (`Constant`, still
-  available). The `fps` tooltip still says "the real rate is 100 / round(100 / fps)" and
-  `tests/schema.rs` pins that text. Decide in M5: reword the tooltip (and that test) or default
-  to `Constant`.
 
 ## Low
 - Fit safety resize (`cv::resize` `INTER_LINEAR` when rounding leaves the fitted canvas off
@@ -26,9 +26,8 @@ Deferred items, open decisions and known issues. Planned milestone work lives in
   description but, with the raw frames, were about 3.5 MB, over the 2 MB cap.
 - Single-thread render is about 5× slower than v2 (600×600, 60 frames: 3.2 s vs 0.63 s, both
   with OpenCV SIMD on v2's side). Full export with 12 threads is still faster than v2 (1.10 s vs
-  1.20 s), so profile only if the preview feels slow in M5.
-- `export_gif` does not load the image (the caller builds the `FrameRenderer`), so v2's
-  "image could not be loaded" export error belongs to the M5 export UI.
+  1.20 s). The M5 preview renders at preview scale and reuses the built renderer while only the
+  frame changes (scrub, Play); profile if Nic finds slider edits sluggish.
 - Translations (gettext) — English only for now.
 - Import settings from v2's `~/.config/nicthegreatest/psychedelic-gif-creator.conf`.
 - Animated input (GIF frames via the `gif` decoder; video via GStreamer from the runtime, not
@@ -37,6 +36,9 @@ Deferred items, open decisions and known issues. Planned milestone work lives in
 - AVIF/HEIC input (needs C libraries; would come from the runtime, not crates).
 
 ## Resolved
+- Frame delays (M5): keep `DelayMode::Accumulated` as the default; fps tooltip and
+  `tests/schema.rs` reworded.
+- v2's "Cannot read image" check before export lives in the M5 export UI.
 - Licence: GPL-3.0-or-later (matches Cutline, allows `imagequant`). `COPYING` added in M1.
 - App ID `dev.nic.GifCreator` confirmed.
 - JPEG 2000 (`.jp2`) input dropped: no pure-Rust decoder.
