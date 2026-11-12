@@ -3,7 +3,7 @@
 /// How per-frame delays are chosen.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum DelayMode {
-    /// Delays alternate (e.g. 8, 8, 9 cs at 12 fps) so the time after `k`
+    /// Delays alternate (e.g. 8, 9, 8 cs at 12 fps) so the time after `k`
     /// frames is `100 k / fps` rounded to the nearest centisecond. The loop
     /// plays at the requested rate. Deviation from v2, chosen for the rewrite.
     #[default]

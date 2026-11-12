@@ -140,7 +140,7 @@ fn field_metadata_spot_checks() {
     let f = schema::find("fps").unwrap();
     assert_eq!(
         f.tooltip,
-        "Playback speed. GIF timing is stored in 1/100 s, so the real rate is 100 / round(100 / fps)."
+        "Playback speed. The GIF plays at this rate: GIF timing is stored in 1/100 s, so frame delays alternate (8, 9, 8 hundredths at 12 fps) to keep the timing exact."
     );
 
     let f = schema::find("kaleidoscope_mode").unwrap();

@@ -10,3 +10,4 @@ pub mod render;
 pub mod rng;
 pub mod schema;
 pub mod settings;
+pub mod ui_model;

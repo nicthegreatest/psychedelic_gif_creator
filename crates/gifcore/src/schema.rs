@@ -190,7 +190,7 @@ pub static FIELDS: &[FieldInfo] = &[
     int_field!(output_height, "Height (px)", "Height of the generated GIF in pixels.", 64, 1600),
     choice_field!(fit_mode, FitMode, "Image fit", "How the image is fitted to the output size: Fill crops, Fit letterboxes, Stretch distorts."),
     int_field!(num_frames, "Frames per loop", "Number of frames in one loop of the GIF.", 10, 240),
-    int_field!(fps, "Frame rate (fps)", "Playback speed. GIF timing is stored in 1/100 s, so the real rate is 100 / round(100 / fps).", 2, 50),
+    int_field!(fps, "Frame rate (fps)", "Playback speed. The GIF plays at this rate: GIF timing is stored in 1/100 s, so frame delays alternate (8, 9, 8 hundredths at 12 fps) to keep the timing exact.", 2, 50),
     bool_field!(dither, "Dithering", "Floyd-Steinberg dithering: smoother gradients, slower export, usually a larger file."),
     // Tunnel
     int_field!(max_layers, "Tunnel layers", "Number of nested copies of the image that form the tunnel.", 1, 24),
