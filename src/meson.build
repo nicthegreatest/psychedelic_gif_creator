@@ -20,9 +20,13 @@ run_command(
 )
 
 sources += files(
+  'advanced.rs',
   'application.rs',
   'config.rs',
+  'export_ui.rs',
+  'form.rs',
   'main.rs',
+  'preview.rs',
   'window.rs',
 )
 

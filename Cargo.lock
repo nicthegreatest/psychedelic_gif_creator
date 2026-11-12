@@ -267,6 +267,7 @@ dependencies = [
 name = "gif-creator"
 version = "0.1.0"
 dependencies = [
+ "gifcore",
  "gtk4",
  "libadwaita",
 ]

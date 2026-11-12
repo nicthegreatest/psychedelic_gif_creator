@@ -13,6 +13,7 @@ description = "Psychedelic GIF Creator, GTK 4 / libadwaita frontend"
 [dependencies]
 adw = { version = "0.9", package = "libadwaita", features = ["v1_8"] }
 gtk = { version = "0.11", package = "gtk4", features = ["v4_16"] }
+gifcore = { path = "crates/gifcore" }
 
 [profile.release]
 opt-level = 3

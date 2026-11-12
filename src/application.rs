@@ -14,7 +14,7 @@ pub fn run() -> glib::ExitCode {
             win.present();
             return;
         }
-        window::build(app).present();
+        window::build(app).window.present();
     });
 
     app.run()

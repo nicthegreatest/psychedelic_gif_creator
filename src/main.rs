@@ -1,7 +1,11 @@
+mod advanced;
 mod application;
 #[rustfmt::skip]
 #[allow(dead_code)]
 mod config;
+mod export_ui;
+mod form;
+mod preview;
 mod window;
 
 use gtk::glib;
