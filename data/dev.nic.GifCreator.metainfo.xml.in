@@ -1,25 +1,60 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Copyright 2026 Nic -->
+<!-- Copyright 2026 nicthegreatest -->
 <component type="desktop-application">
   <id>@app_id@</id>
   <name>Psychedelic GIF Creator@name_suffix@</name>
   <summary>Turn still images into looping psychedelic GIFs</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
+  <url type="homepage">https://github.com/nicthegreatest</url>
   <launchable type="desktop-id">@app_id@.desktop</launchable>
   <content_rating type="oars-1.1" />
-  <!-- developer_name tag deprecated with Appstream 1.0 -->
-  <developer_name>Nic</developer_name>
   <developer id="dev.nic">
-    <name>Nic</name>
+    <name>nicthegreatest</name>
   </developer>
   <description>
     <p>
-      Psychedelic GIF Creator turns a still image into a seamlessly looping animated GIF with
-      kaleidoscope, star field, wave and colour effects.
+      Psychedelic GIF Creator turns a still image into a seamlessly looping animated GIF: a
+      tunnel of nested, spinning, zooming copies of your picture.
     </p>
+    <p>Features:</p>
+    <ul>
+      <li>Oscillating zoom or an endless tunnel flight, with adjustable layers and spin</li>
+      <li>Kaleidoscope mirrors, twinkling stars, ripples, colour cycling and invert flashes</li>
+      <li>Pixelation, blur and vignette</li>
+      <li>Live preview with play and scrub, and a Cosmic Chaos randomiser</li>
+      <li>Fast multi-threaded export with exact frame timing</li>
+    </ul>
+    <p>Opens PNG, JPEG, WebP, TIFF, BMP, GIF and PNM images.</p>
   </description>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <categories>
+    <category>Graphics</category>
+  </categories>
+  <keywords>
+    <keyword>gif</keyword>
+    <keyword>animation</keyword>
+    <keyword>kaleidoscope</keyword>
+    <keyword>psychedelic</keyword>
+  </keywords>
   <releases>
+    <release version="1.0.0" date="2026-11-12">
+      <description>
+        <p>First release of the Rust and GTK 4 rewrite.</p>
+        <ul>
+          <li>All effects of the Qt version, with matching output</li>
+          <li>libadwaita window with live preview, Advanced Effects and an optional console</li>
+          <li>GIFs play at exactly the chosen frame rate</li>
+          <li>Remembers the window size and the last open and save folders</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-11-01">
       <description>
         <p>Application skeleton and Flatpak packaging.</p>

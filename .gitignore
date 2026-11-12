@@ -4,6 +4,8 @@
 /.flatpak-builder/
 /backups/
 /repo/
+/dist/
+/generated-sources.json
 /*.flatpak
 /_build/
 /builddir/

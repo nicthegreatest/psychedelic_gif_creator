@@ -50,4 +50,7 @@ modules:
           - src/config.rs
           - backups
           - .qwen
+          - dist
+          - repo
+          - generated-sources.json
       - cargo-sources.json

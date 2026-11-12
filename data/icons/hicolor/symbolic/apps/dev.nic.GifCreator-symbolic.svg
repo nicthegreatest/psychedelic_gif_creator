@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Derived from the app icon: the same nested, rotated tunnel squares, one colour. -->
+  <g fill="#2e3436" fill-rule="evenodd">
+    <path d="M1 1h14v14H1z M2.5 2.5v11h11v-11z"/>
+    <path transform="rotate(15 8 8)" d="M3.4 3.4h9.2v9.2H3.4z M4.7 4.7v6.6h6.6V4.7z"/>
+    <path transform="rotate(30 8 8)" d="M5.4 5.4h5.2v5.2H5.4z M6.6 6.6v2.8h2.8V6.6z"/>
+    <circle cx="8" cy="8" r="0.9"/>
+  </g>
+</svg>

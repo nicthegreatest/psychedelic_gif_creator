@@ -33,8 +33,6 @@ if appstreamcli.found()
   test('Validate appdata file', appstreamcli,
     args: [
       'validate', '--no-net', '--explain',
-      # Not published yet, so it has no homepage URL.
-      '--override=url-homepage-missing=pedantic',
       appstream_file,
     ]
   )
