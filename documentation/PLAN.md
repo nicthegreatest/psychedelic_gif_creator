@@ -185,14 +185,15 @@ remembered folder, `.gif` appended), progress bar + Cancel, success dialog with
 Acceptance: builds, tests and clippy pass; every UI item in FEATURE_INVENTORY §5 is wired;
 TEST_PLAN rows added for Nic.
 
-### M6 — Settings persistence, presets, polish
-Scope: GSettings for all fields + window size + last input/output folders + last image;
-gschema default ↔ core default test; presets: save/load/delete named presets (key=value
-files in the app data dir) and import/export a preset file; keyboard shortcuts
-(Ctrl+O open, Ctrl+E/Ctrl+Return generate, Escape cancel, Ctrl+Q quit, shortcuts dialog);
-about dialog; error toasts in place of the status bar.
-Acceptance: settings survive restart (Nic checks); out-of-range stored values are clamped
-(unit test); presets round-trip (unit test); CHANGELOG updated.
+### M6 — Final touches (scope trimmed by Nic)
+Scope: GSettings (`dev.nic.GifCreator.gschema.xml`) for window size + maximized and the last
+open and save folders; an About dialog (`AdwAboutDialog`) from the header menu. Missing or
+odd stored values fall back to defaults; saved folders that no longer exist are ignored.
+Acceptance: size and folders survive a restart (Nic checks); restore rules unit-tested in
+`gifcore::ui_model`; CHANGELOG updated.
+Dropped by Nic (not planned): persisting effect settings and the last image, the gschema ↔
+core default test, presets, keyboard shortcuts beyond GTK's defaults, remembering the
+console toggle (always off at start). Error toasts already replaced the status bar in M5.
 
 ### M7 — Packaging, bundle and manual test pass
 Scope: final finish-args review (portals only, or `--filesystem=home` if decided), metainfo

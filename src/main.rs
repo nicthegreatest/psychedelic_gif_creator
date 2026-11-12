@@ -6,6 +6,7 @@ mod config;
 mod export_ui;
 mod form;
 mod preview;
+mod state;
 mod window;
 
 use gtk::glib;

@@ -43,7 +43,7 @@ impl Win {
                 return;
             };
             *w.last_output_dir.borrow_mut() = out.parent().map(PathBuf::from);
-            // Settings are saved before export in v2; persistence arrives in M6.
+            w.state.remember_save(&out);
 
             w.play.set_active(false);
             let mut phase = w.phase.get();
@@ -147,7 +147,7 @@ impl Win {
             .borrow()
             .clone()
             .or_else(|| input.parent().map(PathBuf::from))
-            .filter(|d| d.is_dir() && !ui_model::is_portal_path(d));
+            .and_then(|d| ui_model::restored_dir(&d.to_string_lossy()));
         if let Some(dir) = dir {
             dialog.set_initial_folder(Some(&gio::File::for_path(dir)));
         }
@@ -201,6 +201,7 @@ impl Win {
             if let Some(a) = self.advanced.borrow_mut().take() {
                 a.destroy();
             }
+            self.state.save_window(&self.window);
             return glib::Propagation::Proceed;
         }
         if self.quit_after_export.get() {

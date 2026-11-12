@@ -13,8 +13,10 @@ use gifcore::settings::GifSettings;
 use gifcore::ui_model::{self, ExportPhase, Log, PreviewQueue, MAIN_GROUPS};
 use gtk::{gdk, gio, glib};
 
+use crate::config;
 use crate::form::Form;
 use crate::preview::{self, SourceCache};
+use crate::state::State;
 
 /// Debounce before a preview re-render after a setting changes (v2: 150 ms).
 const PREVIEW_DEBOUNCE_MS: u64 = 150;
@@ -63,6 +65,19 @@ pub struct Win {
     pub quit_after_export: Cell<bool>,
     pub last_output_dir: RefCell<Option<PathBuf>>,
     pub advanced: RefCell<Option<adw::Window>>,
+    pub state: State,
+}
+
+fn show_about(parent: &adw::ApplicationWindow) {
+    adw::AboutDialog::builder()
+        .application_name("Psychedelic GIF Creator")
+        .application_icon(config::APP_ID)
+        .version(config::VERSION)
+        .developer_name("nicthegreatest")
+        .license_type(gtk::License::Gpl30)
+        .comments(format!("App ID: {}", config::APP_ID))
+        .build()
+        .present(Some(parent));
 }
 
 fn button(label: &str, tooltip: &str) -> gtk::Button {
@@ -279,6 +294,16 @@ pub fn build(app: &adw::Application) -> Rc<Win> {
 
     let title = adw::WindowTitle::new("Psychedelic GIF Creator", "Choose an image to begin.");
     let header = adw::HeaderBar::builder().title_widget(&title).build();
+    let menu = gio::Menu::new();
+    menu.append(Some("About Psychedelic GIF Creator"), Some("win.about"));
+    header.pack_end(
+        &gtk::MenuButton::builder()
+            .icon_name("open-menu-symbolic")
+            .tooltip_text("Main menu")
+            .menu_model(&menu)
+            .primary(true)
+            .build(),
+    );
     let toolbar = adw::ToolbarView::new();
     toolbar.add_top_bar(&header);
     toolbar.set_content(Some(&split));
@@ -288,10 +313,18 @@ pub fn build(app: &adw::Application) -> Rc<Win> {
     let window = adw::ApplicationWindow::builder()
         .application(app)
         .title("Psychedelic GIF Creator")
-        .default_width(1100)
-        .default_height(760)
         .content(&toasts)
         .build();
+    let state = State::load();
+    let (ww, wh, maximized) = state.window();
+    window.set_default_size(ww, wh);
+    if maximized {
+        window.maximize();
+    }
+    let about = gio::SimpleAction::new("about", None);
+    let parent = window.clone();
+    about.connect_activate(move |_, _| show_about(&parent));
+    window.add_action(&about);
 
     let win = Rc::new(Win {
         window,
@@ -328,8 +361,9 @@ pub fn build(app: &adw::Application) -> Rc<Win> {
         phase: Cell::default(),
         cancel_flag: RefCell::default(),
         quit_after_export: Cell::new(false),
-        last_output_dir: RefCell::default(),
+        last_output_dir: RefCell::new(state.save_dir()),
         advanced: RefCell::default(),
+        state,
     });
     win.connect(&browse, &aspect);
     win
@@ -520,6 +554,9 @@ impl Win {
             self.placeholder.set_label("Loading…");
         }
         self.log(&format!("Image: {}", path.display()));
+        if path.is_file() {
+            self.state.remember_open(&path);
+        }
         self.settings.borrow_mut().image_path = path;
         self.schedule_preview(0);
     }
@@ -542,10 +579,14 @@ impl Win {
             .filters(&filters)
             .default_filter(&images)
             .build();
-        if let Some(dir) = self.settings.borrow().image_path.parent() {
-            if dir.is_dir() && !ui_model::is_portal_path(dir) {
-                dialog.set_initial_folder(Some(&gio::File::for_path(dir)));
-            }
+        let current = self
+            .settings
+            .borrow()
+            .image_path
+            .parent()
+            .and_then(|d| ui_model::restored_dir(&d.to_string_lossy()));
+        if let Some(dir) = current.or_else(|| self.state.open_dir()) {
+            dialog.set_initial_folder(Some(&gio::File::for_path(dir)));
         }
         let w = self.clone();
         glib::spawn_future_local(async move {

@@ -387,3 +387,41 @@ fn settings_diff_ignores_image_path() {
     };
     assert!(settings_diff(&old, &new).is_empty());
 }
+
+#[test]
+fn window_size_falls_back_to_default() {
+    assert_eq!(restored_window_size(1280, 900), (1280, 900));
+    assert_eq!(restored_window_size(0, 0), DEFAULT_WINDOW_SIZE);
+    assert_eq!(restored_window_size(-5, 900), DEFAULT_WINDOW_SIZE);
+    assert_eq!(restored_window_size(1280, 100_000), DEFAULT_WINDOW_SIZE);
+}
+
+#[test]
+fn restored_dir_needs_an_existing_absolute_folder() {
+    let tmp = std::env::temp_dir();
+    let tmp_text = tmp.to_string_lossy().into_owned();
+    assert_eq!(restored_dir(&tmp_text), Some(tmp.clone()));
+    assert_eq!(restored_dir(""), None);
+    assert_eq!(restored_dir("relative/dir"), None);
+    let missing = tmp.join("gifcore-no-such-dir-4f1c");
+    assert_eq!(restored_dir(&missing.to_string_lossy()), None);
+    assert_eq!(restored_dir("/run/user/1000/doc/ab12"), None);
+    // A file is not a folder.
+    let file = tmp.join("gifcore-restored-dir-file.txt");
+    std::fs::write(&file, b"x").unwrap();
+    assert_eq!(restored_dir(&file.to_string_lossy()), None);
+    std::fs::remove_file(&file).unwrap();
+}
+
+#[test]
+fn folder_to_remember_skips_portal_and_relative() {
+    assert_eq!(
+        folder_to_remember(Path::new("/home/nic/Pictures/a.png")).as_deref(),
+        Some("/home/nic/Pictures")
+    );
+    assert_eq!(
+        folder_to_remember(Path::new("/run/user/1000/doc/ab12/a.png")),
+        None
+    );
+    assert_eq!(folder_to_remember(Path::new("a.png")), None);
+}

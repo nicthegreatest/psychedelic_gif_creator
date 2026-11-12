@@ -29,6 +29,9 @@ Deferred items, open decisions and known issues. Planned milestone work lives in
 - AVIF/HEIC input (needs C libraries; would come from the runtime, not crates).
 
 ## Resolved
+- M6 scope trimmed by Nic: only window size/maximized, last folders and About. Not planned:
+  persisting effect settings or the last image, presets, extra keyboard shortcuts, remembering
+  the console toggle.
 - File access (M5): the Flatpak gets `--filesystem=home` (as Cutline) and keeps the typed path
   box. Files outside home (e.g. `/run/media`) still go through the portal.
 - Frame delays (M5): keep `DelayMode::Accumulated` as the default; fps tooltip and

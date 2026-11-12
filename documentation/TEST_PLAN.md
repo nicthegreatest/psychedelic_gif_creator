@@ -29,6 +29,8 @@ verify with `cargo test`; they do not drive the GUI. Mark **PASS**, **FAIL** (wi
 | [ ] | Default preset vs v2 | Headless frames for the default motion and each M3 effect match v2 within the golden tolerance. A side-by-side look of the preview and the exported GIF is still the "Same look as v2" check | M5 | NIC |
 | [ ] | GIF timing | A 12 fps export plays at 12 fps in a browser and loops with no pause at the seam (delays repeat 8, 9, 8 cs) | M5 | NIC |
 | [ ] | Export speed | `cargo run -p gifcore --release --example bench -- <photo> /tmp/rs.gif none 0 600x600` is no slower than 2× v2's `gif_bench` with the same arguments (M4: 1.10 s vs 1.20 s on Nic's PC) | M4 | NIC |
-| [ ] | Settings persist | Change settings, quit, reopen: same settings, window size and folders | M6 | NIC |
-| [ ] | Presets | Save, load, delete, export and import a preset | M6 | NIC |
+| [ ] | Window remembered | Resize, quit, reopen: same size. Maximize, quit, reopen: opens maximized; unmaximizing returns to the earlier size | M6 | NIC |
+| [ ] | Folders remembered | Open an image and save a GIF in two different folders, quit, reopen: Browse starts in the image folder, Generate GIF's dialog in the save folder. Delete or rename the save folder, reopen: the dialog opens normally (no error) | M6 | NIC |
+| [ ] | Fresh start | Quit, delete `~/.var/app/dev.nic.GifCreator/config/glib-2.0/settings/keyfile` (or put junk in it), reopen: 1100×760 window, no errors; effect settings are always the defaults and the console is off | M6 | NIC |
+| [ ] | About | Header menu → About Psychedelic GIF Creator shows the icon, version 0.1.0, GPL-3.0-or-later and developer nicthegreatest | M6 | NIC |
 | [ ] | Bundle install | `flatpak install --user gif-creator.flatpak` on another machine/user pulls the runtime if missing and the app runs | M7 | NIC |

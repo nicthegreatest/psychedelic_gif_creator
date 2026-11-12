@@ -479,3 +479,30 @@ impl Log {
         self.lines().collect::<Vec<_>>().join("\n")
     }
 }
+
+/// Window size used when nothing (or nothing sensible) was saved (v2: 1100×760).
+pub const DEFAULT_WINDOW_SIZE: (i32, i32) = (1100, 760);
+
+/// A saved window size, or the default if it is missing or implausible.
+pub fn restored_window_size(width: i32, height: i32) -> (i32, i32) {
+    let ok = |v: i32, lo: i32| (lo..=16384).contains(&v);
+    if ok(width, 400) && ok(height, 300) {
+        (width, height)
+    } else {
+        DEFAULT_WINDOW_SIZE
+    }
+}
+
+/// A saved folder that can still be used as a dialog start folder: an absolute,
+/// existing directory outside the document portal. Anything else is ignored.
+pub fn restored_dir(saved: &str) -> Option<PathBuf> {
+    let p = PathBuf::from(saved.trim());
+    (p.is_absolute() && p.is_dir() && !is_portal_path(&p)).then_some(p)
+}
+
+/// The folder worth remembering for a chosen file: its parent, unless that is
+/// a per-file portal folder (which would not exist after a restart).
+pub fn folder_to_remember(file: &Path) -> Option<String> {
+    let dir = file.parent()?;
+    (dir.is_absolute() && !is_portal_path(dir)).then(|| dir.to_string_lossy().into_owned())
+}

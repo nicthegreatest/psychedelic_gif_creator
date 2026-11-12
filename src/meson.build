@@ -27,6 +27,7 @@ sources += files(
   'form.rs',
   'main.rs',
   'preview.rs',
+  'state.rs',
   'window.rs',
 )
 

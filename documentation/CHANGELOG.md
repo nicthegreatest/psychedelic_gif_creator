@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with "Show in folder", and a "Stop it and quit?" question when closing during an export.
 - The Flatpak can read and write your home folder (`--filesystem=home`), so typed image paths
   work and exports save next to their temporary file.
+- The window remembers its size and maximized state, and the open and save dialogs start in the
+  folders used last time (GSettings; folders that no longer exist are skipped).
+- About dialog in the header menu: version, GPL-3.0-or-later, developer nicthegreatest.
 
 ### Changed
 - GIF frame delays alternate (8, 9, 8 cs at 12 fps) so the GIF plays at the chosen frame rate;
