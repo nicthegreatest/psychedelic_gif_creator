@@ -322,3 +322,68 @@ fn portal_paths_are_detected() {
     assert!(!is_portal_path(Path::new("/run/user/1000/photo.png")));
     assert!(!is_portal_path(Path::new("relative/doc/x.png")));
 }
+
+#[test]
+fn log_lines_are_time_two_spaces_message() {
+    let mut log = Log::default();
+    assert!(log.is_empty());
+    log.push("10:53:07", "Reset all");
+    assert_eq!(log.text(), "10:53:07  Reset all");
+    log.push("10:53:08", "x");
+    assert_eq!(log.text(), "10:53:07  Reset all\n10:53:08  x");
+    log.clear();
+    assert_eq!(log.len(), 0);
+    assert_eq!(log.text(), "");
+}
+
+#[test]
+fn log_drops_oldest_beyond_cap() {
+    let mut log = Log::default();
+    for i in 0..LOG_CAP + 10 {
+        log.push("00:00:00", &i.to_string());
+    }
+    assert_eq!(log.len(), LOG_CAP);
+    assert_eq!(log.lines().next(), Some("00:00:00  10"));
+    let last = (LOG_CAP + 9).to_string();
+    assert_eq!(
+        log.lines().last(),
+        Some(format!("00:00:00  {last}").as_str())
+    );
+    let mut small = Log::with_cap(2);
+    small.push("t", "a");
+    small.push("t", "b");
+    small.push("t", "c");
+    assert_eq!(small.text(), "t  b\nt  c");
+}
+
+#[test]
+fn settings_diff_uses_labels_and_readable_values() {
+    let old = GifSettings::default();
+    assert!(settings_diff(&old, &old).is_empty());
+    let new = GifSettings {
+        rotation_turns: 4.9,
+        dither: true,
+        zoom_mode: ZoomMode::Tunnel,
+        ..old.clone()
+    };
+    let label = |k: &str| schema::find(k).unwrap().label;
+    let zoom = |s: &GifSettings| schema::find("zoom_mode").unwrap().format(s);
+    assert_eq!(
+        settings_diff(&old, &new),
+        vec![
+            format!("{}: Off → On", label("dither")),
+            format!("{}: 2 → 4.9", label("rotation_turns")),
+            format!("{}: {} → {}", label("zoom_mode"), zoom(&old), zoom(&new)),
+        ]
+    );
+}
+
+#[test]
+fn settings_diff_ignores_image_path() {
+    let old = GifSettings::default();
+    let new = GifSettings {
+        image_path: PathBuf::from("/tmp/x.png"),
+        ..old.clone()
+    };
+    assert!(settings_diff(&old, &new).is_empty());
+}

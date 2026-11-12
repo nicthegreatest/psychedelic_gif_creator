@@ -392,3 +392,90 @@ impl PreviewQueue {
         self.running
     }
 }
+
+/// Lines kept by the console before the oldest are dropped.
+pub const LOG_CAP: usize = 500;
+
+/// A field's value as console text: choice labels, "On"/"Off", trimmed numbers.
+pub fn field_text(field: &FieldInfo, s: &GifSettings) -> String {
+    let v = field.value(s);
+    match field.kind {
+        schema::FieldKind::Bool => (if v >= 0.5 { "On" } else { "Off" }).to_string(),
+        schema::FieldKind::Choice => field.format(s),
+        schema::FieldKind::Int | schema::FieldKind::Double => fmt_num(v),
+    }
+}
+
+/// One `Label: old → new` line per field that differs, in schema order.
+pub fn settings_diff(old: &GifSettings, new: &GifSettings) -> Vec<String> {
+    schema::FIELDS
+        .iter()
+        .filter(|f| f.value(old) != f.value(new))
+        .map(|f| {
+            format!(
+                "{}: {} → {}",
+                f.label,
+                field_text(f, old),
+                field_text(f, new)
+            )
+        })
+        .collect()
+}
+
+/// Read-only console log: `HH:MM:SS  message` lines, capped at a fixed count.
+#[derive(Debug, Clone)]
+pub struct Log {
+    lines: std::collections::VecDeque<String>,
+    cap: usize,
+}
+
+impl Default for Log {
+    fn default() -> Self {
+        Self::with_cap(LOG_CAP)
+    }
+}
+
+impl Log {
+    /// A log keeping at most `cap` lines (at least 1).
+    pub fn with_cap(cap: usize) -> Self {
+        Self {
+            lines: std::collections::VecDeque::new(),
+            cap: cap.max(1),
+        }
+    }
+
+    /// Formats one line: the time, two spaces, the message.
+    pub fn format_line(time: &str, message: &str) -> String {
+        format!("{time}  {message}")
+    }
+
+    /// Appends a message stamped with `time` (e.g. "10:53:07"), dropping the
+    /// oldest line once the cap is reached.
+    pub fn push(&mut self, time: &str, message: &str) {
+        if self.lines.len() == self.cap {
+            self.lines.pop_front();
+        }
+        self.lines.push_back(Self::format_line(time, message));
+    }
+
+    pub fn clear(&mut self) {
+        self.lines.clear();
+    }
+
+    pub fn len(&self) -> usize {
+        self.lines.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.lines.is_empty()
+    }
+
+    pub fn lines(&self) -> impl Iterator<Item = &str> {
+        self.lines.iter().map(String::as_str)
+    }
+
+    /// All lines joined with newlines (no trailing newline).
+    pub fn text(&self) -> String {
+        self.lines().collect::<Vec<_>>().join("\n")
+    }
+}

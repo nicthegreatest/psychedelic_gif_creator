@@ -21,8 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "Live preview" switch.
 - Open an image with the file dialog, a typed path or drag and drop; load errors appear in the
   preview and as a toast.
-- "Match image aspect", "Reset all" (keeps the image) and a toast when spin is rounded to whole
-  turns.
+- "Match image aspect" and "Reset all" (keeps the image).
+- "Show console" switch under the preview (off by default) revealing a read-only log with
+  Clear: every setting change as `HH:MM:SS  Setting: old → new`, spin rounding to whole turns,
+  match aspect, reset, Advanced Effects open/apply/cancel, image changes, and export start,
+  save, cancel and failure (last 500 lines). Only errors appear as toasts or dialogs.
 - Advanced Effects window (movable, non-modal): live preview of its working copy, Cosmic Chaos,
   Effect defaults, OK/Cancel; the main settings are locked while it is open.
 - Generate GIF: save dialog suggesting `<image>_psychedelic.gif` in the last folder used,

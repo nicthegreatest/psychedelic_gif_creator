@@ -21,7 +21,7 @@ verify with `cargo test`; they do not drive the GUI. Mark **PASS**, **FAIL** (wi
 | [ ] | Busy lock | During an export the input, settings, Advanced, Reset and Generate are disabled; Cancel and the progress bar ("Frame n of N (p%)") show; the header says "Launching hyperspace…", then "Cancelling…" after Cancel | M5 | NIC |
 | [ ] | Export errors | Generate with no image says "Please choose an input image first."; with a deleted or non-image file says "Cannot read image" with the loader text | M5 | NIC |
 | [ ] | Done dialog | "GIF generation complete." shows the path; "Show in folder" opens the folder in Files (Flatpak: through the portal) | M5 | NIC |
-| [ ] | Spin rounding toast | Oscillating mode, spin 2.5: a toast says it is rounded to 3 whole turns; Tunnel mode shows no toast | M5 | NIC |
+| [ ] | Console | No toasts for normal changes. Tick "Show console": the log slides open under the preview; changing a setting adds `HH:MM:SS  Label: old → new`; Oscillating spin 2.5 adds a line saying it is rounded to 3 whole turns (none in Tunnel mode); Match aspect, Reset all, Advanced edits (marked "(preview)") and OK/Cancel, and export start/save/cancel are logged; it auto-scrolls; Clear empties it; unticking hides it | M5 | NIC |
 | [ ] | Flatpak file access | In the Flatpak: Browse, drag and drop and a typed path anywhere in your home folder (e.g. `~/Pictures/x.png`) load the image; saving to a home folder works, including a name typed without `.gif` (saved as `<name>.gif`) | M5 | NIC |
 | [ ] | Preview speed | Dragging a slider on a 600×600 default config feels responsive; Play at 12 fps does not stutter badly (frames are dropped, not queued) | M5 | NIC |
 | [ ] | HiDPI | At 200 % scaling the preview is sharp | M5 | NIC |

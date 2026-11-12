@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use adw::prelude::*;
 use gifcore::settings::GifSettings;
-use gifcore::ui_model::{self, ExportPhase, PreviewQueue, MAIN_GROUPS};
+use gifcore::ui_model::{self, ExportPhase, Log, PreviewQueue, MAIN_GROUPS};
 use gtk::{gdk, gio, glib};
 
 use crate::form::Form;
@@ -44,6 +44,15 @@ pub struct Win {
     frame_scale: gtk::Scale,
     pub play: gtk::ToggleButton,
     live: gtk::CheckButton,
+    console_toggle: gtk::CheckButton,
+    console: gtk::Revealer,
+    console_view: gtk::TextView,
+    console_clear: gtk::Button,
+    log: RefCell<Log>,
+    /// Settings as last written to the console, to log only what changed.
+    logged: RefCell<GifSettings>,
+    /// Same for the Advanced Effects working copy while that window is open.
+    pub adv_logged: RefCell<Option<GifSettings>>,
     pub cache: Arc<SourceCache>,
     queue: Cell<PreviewQueue>,
     debounce: RefCell<Option<glib::SourceId>>,
@@ -202,12 +211,63 @@ pub fn build(app: &adw::Application) -> Rc<Win> {
     scrub.append(&play);
     scrub.append(&frame_scale);
     scrub.append(&live);
+    let console_toggle = gtk::CheckButton::builder()
+        .label("Show console")
+        .tooltip_text("Show a log of every setting change and export.")
+        .build();
+    scrub.append(&console_toggle);
+
+    let console_view = gtk::TextView::builder()
+        .editable(false)
+        .cursor_visible(false)
+        .monospace(true)
+        .wrap_mode(gtk::WrapMode::WordChar)
+        .top_margin(6)
+        .bottom_margin(6)
+        .left_margin(6)
+        .right_margin(6)
+        .build();
+    let console_scroll = gtk::ScrolledWindow::builder()
+        .hscrollbar_policy(gtk::PolicyType::Never)
+        .height_request(160)
+        .child(&console_view)
+        .build();
+    let console_clear = gtk::Button::builder()
+        .label("Clear")
+        .tooltip_text("Clear the console.")
+        .css_classes(["flat"])
+        .build();
+    let console_head = gtk::Box::builder().spacing(6).build();
+    console_head.append(
+        &gtk::Label::builder()
+            .label("Console")
+            .xalign(0.0)
+            .hexpand(true)
+            .css_classes(["heading"])
+            .build(),
+    );
+    console_head.append(&console_clear);
+    let console_box = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(4)
+        .margin_start(12)
+        .margin_end(12)
+        .margin_bottom(12)
+        .build();
+    console_box.append(&console_head);
+    console_box.append(&console_scroll);
+    let console = gtk::Revealer::builder()
+        .transition_type(gtk::RevealerTransitionType::SlideUp)
+        .reveal_child(false)
+        .child(&console_box)
+        .build();
     let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
     overlay.set_margin_start(12);
     overlay.set_margin_end(12);
     overlay.set_margin_top(12);
     content.append(&overlay);
     content.append(&scrub);
+    content.append(&console);
 
     let split = adw::OverlaySplitView::builder()
         .sidebar(&sidebar)
@@ -253,6 +313,13 @@ pub fn build(app: &adw::Application) -> Rc<Win> {
         frame_scale,
         play,
         live,
+        console_toggle,
+        console,
+        console_view,
+        console_clear,
+        log: RefCell::default(),
+        logged: RefCell::new(GifSettings::default()),
+        adv_logged: RefCell::default(),
         cache: Arc::default(),
         queue: Cell::default(),
         debounce: RefCell::default(),
@@ -308,6 +375,18 @@ impl Win {
             }
         });
         let w = self.clone();
+        self.console_toggle.connect_toggled(move |b| {
+            w.console.set_reveal_child(b.is_active());
+            if b.is_active() {
+                w.refresh_console();
+            }
+        });
+        let w = self.clone();
+        self.console_clear.connect_clicked(move |_| {
+            w.log.borrow_mut().clear();
+            w.refresh_console();
+        });
+        let w = self.clone();
         self.area
             .connect_resize(move |_, _, _| w.schedule_preview(RESIZE_DEBOUNCE_MS));
 
@@ -337,6 +416,38 @@ impl Win {
 
         self.update_locks();
         self.schedule_preview(0);
+    }
+
+    /// Appends a timestamped line to the console.
+    pub fn log(&self, message: &str) {
+        let time = glib::DateTime::now_local()
+            .and_then(|d| d.format("%H:%M:%S"))
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        self.log.borrow_mut().push(&time, message);
+        if self.console.reveals_child() {
+            self.refresh_console();
+        }
+    }
+
+    /// Logs every main setting that changed since the last call.
+    pub fn log_changes(&self) {
+        let now = self.settings.borrow().clone();
+        for line in ui_model::settings_diff(&self.logged.borrow(), &now) {
+            self.log(&line);
+        }
+        *self.logged.borrow_mut() = now;
+    }
+
+    fn refresh_console(&self) {
+        let buf = self.console_view.buffer();
+        buf.set_text(&self.log.borrow().text());
+        // Auto-scroll once the new text is laid out.
+        let view = self.console_view.clone();
+        glib::idle_add_local_once(move || {
+            let mut end = view.buffer().end_iter();
+            view.scroll_to_iter(&mut end, 0.0, false, 0.0, 1.0);
+        });
     }
 
     pub fn toast(&self, text: &str, seconds: u32) {
@@ -378,6 +489,7 @@ impl Win {
     }
 
     fn setting_changed(self: &Rc<Self>, key: &'static str) {
+        self.log_changes();
         if key == "num_frames" {
             let n = self.settings.borrow().num_frames;
             self.frame_scale.set_range(0.0, f64::from(n - 1));
@@ -385,7 +497,7 @@ impl Win {
         if key == "rotation_turns" || key == "zoom_mode" {
             let msg = ui_model::spin_rounding_message(&self.settings.borrow());
             if let Some(msg) = msg {
-                self.toast(&msg, 6);
+                self.log(&msg);
             }
         }
         if key == "fps" && self.play.is_active() {
@@ -407,6 +519,7 @@ impl Win {
                 .set_subtitle(&format!("Loading {}…", name.to_string_lossy()));
             self.placeholder.set_label("Loading…");
         }
+        self.log(&format!("Image: {}", path.display()));
         self.settings.borrow_mut().image_path = path;
         self.schedule_preview(0);
     }
@@ -463,7 +576,8 @@ impl Win {
                         format!("Output set to {} x {}.", s.output_width, s.output_height)
                     };
                     w.form.load();
-                    w.toast(&text, 4);
+                    w.log_changes();
+                    w.log(&text);
                     w.schedule_preview(PREVIEW_DEBOUNCE_MS);
                 }
                 Ok(Err(e)) => w.toast(&e.to_string(), 5),
@@ -477,7 +591,8 @@ impl Win {
         self.form.load();
         let n = self.settings.borrow().num_frames;
         self.frame_scale.set_range(0.0, f64::from(n - 1));
-        self.toast("All settings restored to defaults.", 4);
+        self.log_changes();
+        self.log("All settings restored to defaults.");
         self.schedule_preview(0);
     }
 
@@ -568,6 +683,7 @@ impl Win {
         // Toast once per distinct error, not on every slider step.
         if *self.last_error.borrow() != err {
             self.toast(&err, 6);
+            self.log(&err);
             *self.last_error.borrow_mut() = err;
         }
     }

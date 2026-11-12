@@ -60,6 +60,13 @@ impl Win {
             w.progress
                 .set_text(Some(&ui_model::progress_text(0, total)));
             w.update_locks();
+            w.log(&format!(
+                "Generating {} ({} x {}, {} frames)…",
+                out.display(),
+                settings.output_width,
+                settings.output_height,
+                total
+            ));
 
             // Poll progress from the main loop; the worker only touches atomics.
             let (pw, pd) = (w.clone(), done.clone());
@@ -99,18 +106,24 @@ impl Win {
                 return;
             }
             match result {
-                Ok(Ok(report)) => w.export_succeeded(&report.path),
-                Ok(Err(ExportError::Cancelled)) => w.toast("GIF generation cancelled.", 5),
+                Ok(Ok(report)) => {
+                    w.log(&format!(
+                        "Saved {} ({} KB in {:.1} s).",
+                        report.path.display(),
+                        report.bytes.div_ceil(1024),
+                        report.elapsed.as_secs_f64()
+                    ));
+                    w.export_succeeded(&report.path);
+                }
+                Ok(Err(ExportError::Cancelled)) => w.log("GIF generation cancelled."),
                 Ok(Err(e)) => {
-                    w.toast("GIF generation failed.", 5);
+                    w.log(&format!("GIF generation failed: {e}"));
                     w.alert("Generation failed", &e.to_string());
                 }
                 Err(p) => {
-                    w.toast("GIF generation failed.", 5);
-                    w.alert(
-                        "Generation failed",
-                        &format!("Unexpected error: {}", preview::panic_text(&*p)),
-                    );
+                    let msg = format!("Unexpected error: {}", preview::panic_text(&*p));
+                    w.log(&format!("GIF generation failed: {msg}"));
+                    w.alert("Generation failed", &msg);
                 }
             }
         });
@@ -150,7 +163,6 @@ impl Win {
 
     fn export_succeeded(self: &Rc<Self>, path: &std::path::Path) {
         let shown = path.display().to_string();
-        self.toast(&format!("Saved {shown}"), 8);
         let d = adw::AlertDialog::new(
             Some("GIF generation complete."),
             Some(&format!("Saved to:\n{shown}")),

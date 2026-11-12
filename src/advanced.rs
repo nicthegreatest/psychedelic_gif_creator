@@ -113,13 +113,22 @@ impl Win {
             glib::Propagation::Proceed
         });
 
+        *self.adv_logged.borrow_mut() = Some(self.settings.borrow().clone());
+        self.log("Advanced effects opened (changes are previews until OK).");
         *self.advanced.borrow_mut() = Some(dialog.clone());
         self.update_locks();
         dialog.present();
     }
 
     fn preview_working(self: &Rc<Self>, working: &RefCell<GifSettings>) {
-        *self.preview_override.borrow_mut() = Some(working.borrow().clone());
+        let now = working.borrow().clone();
+        let before = self.adv_logged.borrow_mut().replace(now.clone());
+        if let Some(before) = before {
+            for line in ui_model::settings_diff(&before, &now) {
+                self.log(&format!("{line} (preview)"));
+            }
+        }
+        *self.preview_override.borrow_mut() = Some(now);
         self.schedule_preview(150);
     }
 
@@ -132,7 +141,12 @@ impl Win {
                 ..s
             };
             self.form.load();
+            self.log("Advanced effects applied.");
+            self.log_changes();
+        } else {
+            self.log("Advanced effects cancelled; previous settings kept.");
         }
+        self.adv_logged.borrow_mut().take();
         self.preview_override.borrow_mut().take();
         self.advanced.borrow_mut().take();
         self.update_locks();
