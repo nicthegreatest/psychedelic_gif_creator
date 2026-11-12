@@ -40,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - About dialog in the header menu: version, GPL-3.0-or-later, developer nicthegreatest.
 - Packaging for 1.0.0: symbolic app icon (derived from the app icon), fuller AppStream
   metainfo (description, features, 1.0.0 release notes, OARS rating, developer nicthegreatest,
-  homepage), and a single-file bundle `dist/GifCreator-1.0.0.flatpak` that pulls the GNOME 50
+  homepage, bug tracker and source URLs), and a single-file bundle `dist/GifCreator-1.0.0.flatpak` that pulls the GNOME 50
   runtime from Flathub.
 
 ### Changed
